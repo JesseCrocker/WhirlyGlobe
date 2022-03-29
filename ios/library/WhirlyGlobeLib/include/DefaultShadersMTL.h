@@ -418,8 +418,6 @@ struct ProjVertexTriWideVecPerf {
     float w2;
     float edge;
     uint2 maskIDs;
-    float a, b, c, d;
-    float2 offset;
 };
 
 // Input vertex data for Screen Space shaders

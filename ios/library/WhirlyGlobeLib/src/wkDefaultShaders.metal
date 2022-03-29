@@ -1005,7 +1005,7 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
 
     // Textures are based on un-projected coords, we'll need to know how that relates to projected
     // ones in order to adjust texture coordinates based on screen-based intersections.
-    const float projScale = length(centers[1].dir) / inst[1].segLen;
+    const float projScale = length(centers[2].dir) / inst[1].segLen;
 
     // Pull out the width and possibly calculate one
     float w2 = vertArgs.wideVec.w2;
@@ -1080,28 +1080,26 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
     outVert.edge = vertArgs.wideVec.edge;
 
     if (isValid) {
-        // Work out the corner position by extending the normal
-        const int basePt = (whichVert == 6 || whichVert == 7) ? 2 : 1;
-        const float2 offset = centers[2].norm * interDir * screenScale * (w2 + centerLine + vertArgs.wideVec.edge);
-        const float2 corner = centers[basePt].screenPos + offset;
+        // Select the correct endpoint from which to start.
+        const bool isLeft = (whichVert & 1);
+        const bool isEnd = (whichVert == 6 || whichVert == 7);
+        const int centerIdx = isEnd ? 2 : 1;
 
-        // Use the intersect point instead of the corner
+        // Work out the corner position by extending the normal
+        const float2 offset = centers[2].norm * interDir * screenScale * (w2 + centerLine + vertArgs.wideVec.edge);
+        const float2 corner = centers[centerIdx].screenPos + offset;
+
+        // Use the intersect point, if there is one, or the corner otherwise.
         outVert.position = float4(iPtsValid ? iPts : corner, 0, 1);
 
-        // Default texture position is based on cumulative distance along the line
-        float texY = inst[interPt+1].totalLen;
+        // Texture position is based on cumulative distance along the line. Note that `inst[2]`
+        // wraps to zero at the end, we don't want that.
+        // Then add the difference betweent the intersection point and the original corner,
+        // accounting for the textures being based on un-projected coordinates.
+        const float texY = inst[1].totalLen + (isEnd ? inst[1].segLen : 0) +
+                           (iPtsValid ? dot(iPts - corner, centers[2].nDir) / projScale : 0);
 
-        if (iPtsValid) {
-            // Apply the fraction of the offset along the current segment to the texture coordinate.
-            texY += dot(corner - iPts, centers[1].nDir) / projScale;
-
-            outVert.offset = offset;
-            outVert.a += dot(corner - iPts, centers[1].nDir);
-            outVert.b += dot(corner - iPts, centers[1].nDir) / projScale;
-            outVert.c += dot(corner - iPts, centers[1].nDir) / projScale * texScale;
-        }
-
-        outVert.texCoord.x = texOffset.x + ((whichVert & 1) ? 0 : 1);
+        outVert.texCoord.x = texOffset.x + (isLeft ? 0 : 1);
         outVert.texCoord.y = texOffset.y + texY * texScale;
     }
     return outVert;
