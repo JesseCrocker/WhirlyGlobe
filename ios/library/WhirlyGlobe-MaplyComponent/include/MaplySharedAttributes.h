@@ -245,9 +245,8 @@ extern NSString * const _Nonnull kMaplyWideVecJoinType;
 
 /// Widened vectors are joined with miters
 extern NSString * const _Nonnull kMaplyWideVecMiterJoin;
-// Note: Not yet implemented
 /// Widened vectors are joined with a curve
-//extern NSString * const _Nonnull kMaplyWideVecRoundJoin @"round"
+extern NSString * const _Nonnull kMaplyWideVecRoundJoin;
 /// Widened vectors are joined with a bevel
 extern NSString * const _Nonnull kMaplyWideVecBevelJoin;
 
@@ -256,16 +255,14 @@ extern NSString * const _Nonnull kMaplyWideVecEdgeFalloff;
 
 /// For wide vectors we can control the ends
 /// See: http://www.w3.org/TR/SVG/painting.html#StrokeLinecapProperty
-//extern NSString * const _Nonnull kMaplyWideVecLineCapType @"wideveclinecaptype"
-
-// Note: These are not currently implemented
+extern NSString * const _Nonnull kMaplyWideVecLineCapType;
 
 /// Widened vector ends are flush
-//extern NSString * const _Nonnull kMaplyWideVecButtCap;
+extern NSString * const _Nonnull kMaplyWideVecButtCap;
 /// Widened vector ends are round (e.g. hot dog roads)
-//extern NSString * const _Nonnull kMaplyWideVecRoundCap;
+extern NSString * const _Nonnull kMaplyWideVecRoundCap;
 /// Widened vector ends are extended a bit and then flush
-//extern NSString * const _Nonnull kMaplyWideVecSquareCap;
+extern NSString * const _Nonnull kMaplyWideVecSquareCap;
 
 /// Miter joins will turn to bevel joins past this number of degrees
 extern NSString * const _Nonnull kMaplyWideVecMiterLimit;
@@ -273,6 +270,10 @@ extern NSString * const _Nonnull kMaplyWideVecMiterLimit;
 /// This is the length you'd like the texture to start repeating after.
 /// It's real world coordinates for kMaplyWideVecCoordTypeReal and pixel size for kMaplyWideVecCoordTypeScreen
 extern NSString * const _Nonnull kMaplyWideVecTexRepeatLen;
+
+/// Initial texture coordinates
+extern NSString * const _Nonnull kMaplyWideVecTexOffsetX;
+extern NSString * const _Nonnull kMaplyWideVecTexOffsetY;
 
 /// Offset to left (negative) or right (positive) of the centerline
 extern NSString * const _Nonnull kMaplyWideVecOffset;

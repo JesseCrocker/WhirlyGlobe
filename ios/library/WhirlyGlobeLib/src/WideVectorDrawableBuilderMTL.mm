@@ -81,6 +81,7 @@ BasicDrawable::UniformBlock WideVectorDrawableBuilderMTL::wideVecUniBlock()
     uniWV.offset = lineOffset;
     uniWV.edge = edgeSize;
     uniWV.texRepeat = texRepeat;
+    CopyIntoMtlFloat2(uniWV.texOffset, texOffset);
     uniWV.hasExp = widthExp || offsetExp || colorExp || opacityExp;
     
     BasicDrawable::UniformBlock uniBlock;

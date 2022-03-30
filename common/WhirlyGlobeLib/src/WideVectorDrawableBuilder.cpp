@@ -100,12 +100,6 @@ void WideVectorDrawableBuilder::setLineOffset(float inOffset)
     lineOffsetSet = true;
 }
  
-void WideVectorDrawableBuilder::setTexRepeat(float inTexRepeat)
-    { texRepeat = inTexRepeat; }
-
-void WideVectorDrawableBuilder::setEdgeSize(float inEdgeSize)
-    { edgeSize = inEdgeSize; }
-
 unsigned int WideVectorDrawableBuilder::addPoint(const Point3f &pt)
 {
 #ifdef WIDEVECDEBUG

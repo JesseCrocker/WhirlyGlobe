@@ -204,31 +204,31 @@ NSString* const kMaplyWideVecCoordTypeScreen = MaplyWideVecCoordTypeScreen;
 
 /// For wide vectors we can control the line joins
 /// See: http://www.w3.org/TR/SVG/painting.html#StrokeLinejoinProperty
-NSString* const kMaplyWideVecJoinType = MaplyWideVecJoinType;
+WKDefineConst(WideVecJoinType)
 
 /// Widened vectors are joined with miters
-NSString* const kMaplyWideVecMiterJoin = MaplyWideVecMiterJoin;
+WKDefineConst(WideVecMiterJoin)
 // Note: Not yet implemented
 /// Widened vectors are joined with a curve
-//NSString* const kMaplyWideVecRoundJoin @"round"
+WKDefineConst(WideVecRoundJoin)
 /// Widened vectors are joined with a bevel
-NSString* const kMaplyWideVecBevelJoin = MaplyWideVecBevelJoin;
+WKDefineConst(WideVecBevelJoin)
+/// No joins (fastest)
+WKDefineConst(WideVecNoneJoin)
 
 /// Number of pixels to use in blending the edges of the wide vectors
 NSString* const kMaplyWideVecEdgeFalloff = MaplyWideVecEdgeFalloff;
 
 /// For wide vectors we can control the ends
 /// See: http://www.w3.org/TR/SVG/painting.html#StrokeLinecapProperty
-//NSString* const kMaplyWideVecLineCapType @"wideveclinecaptype"
-
-// Note: These are not currently implemented
+WKDefineConst(WideVecLineCapType)
 
 /// Widened vector ends are flush
-//NSString* const kMaplyWideVecButtCap @"butt"
+WKDefineConst(WideVecButtCap)
 /// Widened vector ends are round (e.g. hot dog roads)
-//NSString* const kMaplyWideVecRoundCap @"round"
+WKDefineConst(WideVecRoundCap)
 /// Widened vector ends are extended a bit and then flush
-//NSString* const kMaplyWideVecSquareCap @"square"
+WKDefineConst(WideVecSquareCap)
 
 /// Miter joins will turn to bevel joins past this number of degrees
 NSString* const kMaplyWideVecMiterLimit = MaplyWideVecMiterLimit;
@@ -236,6 +236,10 @@ NSString* const kMaplyWideVecMiterLimit = MaplyWideVecMiterLimit;
 /// This is the length you'd like the texture to start repeating after.
 /// It's real world coordinates for kMaplyWideVecCoordTypeReal and pixel size for kMaplyWideVecCoordTypeScreen
 NSString* const kMaplyWideVecTexRepeatLen = MaplyWideVecTexRepeatLen;
+
+/// Initial texture coordinates
+WKDefineConst(WideVecTexOffsetX)
+WKDefineConst(WideVecTexOffsetY)
 
 /// Controls the wide vector implementation.  Basic implementation by default.
 WKDefineConst(WideVecImpl)

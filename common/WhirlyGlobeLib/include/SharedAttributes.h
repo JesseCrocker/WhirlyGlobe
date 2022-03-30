@@ -257,27 +257,26 @@
 
 /// Widened vectors are joined with miters
 #define MaplyWideVecMiterJoin WKString("miter")
-// Note: Not yet implemented
 /// Widened vectors are joined with a curve
-//#define kMaplyWideVecRoundJoin @"round"
+#define MaplyWideVecRoundJoin WKString("round")
 /// Widened vectors are joined with a bevel
 #define MaplyWideVecBevelJoin WKString("bevel")
+/// No joins (fastest)
+#define MaplyWideVecNoneJoin WKString("none")
 
 /// Number of pixels to use in blending the edges of the wide vectors
 #define MaplyWideVecEdgeFalloff WKString("edgefalloff")
 
 /// For wide vectors we can control the ends
 /// See: http://www.w3.org/TR/SVG/painting.html#StrokeLinecapProperty
-//#define kMaplyWideVecLineCapType @"wideveclinecaptype"
-
-// Note: These are not currently implemented
+#define MaplyWideVecLineCapType WKString("wideveclinecaptype")
 
 /// Widened vector ends are flush
-//#define kMaplyWideVecButtCap @"butt"
+#define MaplyWideVecButtCap WKString("butt")
 /// Widened vector ends are round (e.g. hot dog roads)
-//#define kMaplyWideVecRoundCap @"round"
+#define MaplyWideVecRoundCap WKString("round")
 /// Widened vector ends are extended a bit and then flush
-//#define kMaplyWideVecSquareCap @"square"
+#define MaplyWideVecSquareCap WKString("square")
 
 /// Miter joins will turn to bevel joins past this number of degrees
 #define MaplyWideVecMiterLimit WKString("miterLimit")
@@ -285,6 +284,10 @@
 /// This is the length you'd like the texture to start repeating after.
 /// It's real world coordinates for kMaplyWideVecCoordTypeReal and pixel size for kMaplyWideVecCoordTypeScreen
 #define MaplyWideVecTexRepeatLen WKString("repeatSize")
+
+/// Initial texture coords
+#define MaplyWideVecTexOffsetX WKString("texOffsetX")
+#define MaplyWideVecTexOffsetY WKString("texOffsetY")
 
 /// Offset to left (negative) or right (positive) of the centerline
 #define MaplyWideVecOffset WKString("vecOffset")

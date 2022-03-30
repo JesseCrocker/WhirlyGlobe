@@ -126,13 +126,16 @@ public:
     
     // Line offset for vectors
     void setLineOffset(float inOffset);
-    
+
     /// How often the texture repeats
-    void setTexRepeat(float inTexRepeat);
-    
+    void setTexRepeat(float inTexRepeat) { texRepeat = inTexRepeat; }
+
+    /// Starting point for texture coords
+    void setTexOffset(const Point2f &offset) { texOffset = offset; }
+
     /// Number of pixels to interpolate at the edges
-    void setEdgeSize(float inEdgeSize);
-    
+    void setEdgeSize(float inEdgeSize) { edgeSize = inEdgeSize; }
+
     // Apply a dynamic color expression
     void setColorExpression(ColorExpressionInfoRef colorExp);
     
@@ -198,6 +201,7 @@ protected:
     bool lineOffsetSet = false;
     bool globeMode = true;
     float texRepeat = 1.0f;
+    Point2f texOffset = { 0.0f, 0.0f };
     float edgeSize = 1.0f;
     int p1_index = -1;
     int n0_index = -1;

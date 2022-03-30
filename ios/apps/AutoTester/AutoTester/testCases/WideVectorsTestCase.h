@@ -37,6 +37,6 @@
 
 - (void)overlap:(MaplyBaseViewController *)viewC;
 
-- (void)exprs:(MaplyBaseViewController *)viewC withLoader:(MaplyQuadLoaderBase*)loader perf:(bool)perf;
+- (void)exprs:(MaplyBaseViewController *)viewC slot:(int)slot perf:(bool)perf;
 
 @end

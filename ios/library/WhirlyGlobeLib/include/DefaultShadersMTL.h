@@ -232,6 +232,7 @@ struct UniformWideVec {
     float offset;   // Offset from center in screen space
     float edge;     // Edge falloff control
     float texRepeat;  // Texture scaling specific to wide vectors
+    simd::float2 texOffset;
     bool hasExp;      // Look for a UniformWideVecExp structure for color, opacity, and width
 };
 

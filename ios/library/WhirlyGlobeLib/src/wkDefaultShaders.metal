@@ -987,14 +987,6 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
     // (1.0/2 (uniforms.frameSize.x + uniforms.frameSize.y)
     const float zoom = ZoomFromSlot(uniforms, vertArgs.uniDrawState.zoomSlot);
 
-    float2 texOffset(0, 0);     // todo: uniforms?
-    //float texPos = ((vert.texInfo.z - vert.texInfo.y) * t0 + vert.texInfo.y + vert.texInfo.w * realWidth2) * texScale;
-    //outVert.texCoord = texOffset + float2((whichVert & 1) ? 1 : 0, texScale * inst[interPt].len);
-
-//    outVert.screenScale = screenScale;
-//    outVert.frameSize = uniforms.frameSize; // (1536,2048)
-//    outVert.screenSize = uniforms.screenSizeInDisplayCoords;    // ~(0.035, 0.05)
-
     for (unsigned int ii=1;ii<4;ii++) {
         if (instValid[ii-1]) {
             centers[ii].dir = centers[ii].screenPos - centers[ii-1].screenPos;
@@ -1015,13 +1007,13 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
     if (w2 > 0.0) {
         w2 = w2 + vertArgs.wideVec.edge;
     }
-    const float realWidth2 = w2 * pixScale;
+    //const float realWidth2 = w2 * pixScale;
 
     // Pull out the center line offset, or calculate one
-    float centerLine = 0.0; // vertArgs.wideVec.offset;
-//    if (vertArgs.wideVec.hasExp)
-//        centerLine = ExpCalculateFloat(vertArgs.wideVecExp.offsetExp, zoom, centerLine);
-    const float realCenterLine = centerLine * pixScale;
+    float centerLine = vertArgs.wideVec.offset;
+    if (vertArgs.wideVec.hasExp)
+        centerLine = ExpCalculateFloat(vertArgs.wideVecExp.offsetExp, zoom, centerLine);
+    //const float realCenterLine = centerLine * pixScale;
 
     // Intersect on the left or right depending
     const float interDir = (whichVert & 1) ? 1 : -1;
@@ -1051,7 +1043,7 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
 //                }
 
             // Intersect the left or right normals
-            const float2 nudge = w2 * interDir * screenScale;
+            const float2 nudge = interDir * screenScale * (w2 /*+ centerLine*/);
             interInfo = intersectWideLines(centers[interPt].screenPos,
                                            centers[interPt+1].screenPos,
                                            centers[interPt+2].screenPos,
@@ -1092,15 +1084,16 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
         // Use the intersect point, if there is one, or the corner otherwise.
         outVert.position = float4(iPtsValid ? iPts : corner, 0, 1);
 
-        // Texture position is based on cumulative distance along the line. Note that `inst[2]`
-        // wraps to zero at the end, we don't want that.
+        // Texture position is based on cumulative distance along the line. Note that
+        // `inst[2].totalLen` wraps to zero at the end, and we don't want that.
         // Then add the difference betweent the intersection point and the original corner,
         // accounting for the textures being based on un-projected coordinates.
         const float texY = inst[1].totalLen + (isEnd ? inst[1].segLen : 0) +
                            (iPtsValid ? dot(iPts - corner, centers[2].nDir) / projScale : 0);
 
-        outVert.texCoord.x = texOffset.x + (isLeft ? 0 : 1);
-        outVert.texCoord.y = texOffset.y + texY * texScale;
+        const float repeatX = 1.0;  // vertArgs.wideVec.texRepeatX?
+        outVert.texCoord.x = vertArgs.wideVec.texOffset.x + (isLeft ? 0 : repeatX);
+        outVert.texCoord.y = vertArgs.wideVec.texOffset.y + texY * texScale;
     }
     return outVert;
 }

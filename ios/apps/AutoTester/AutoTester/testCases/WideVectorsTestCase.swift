@@ -67,7 +67,33 @@ class WideVectorsTestCase : WideVectorsTestCaseBase
         }
     }
 
-    private func texs(_ vc: MaplyBaseViewController, perf: Bool) -> [MaplyComponentObject] {
+    private func joins(_ vc: MaplyBaseViewController, add: Bool = true) {
+        let oldObjs = joinObjs
+        joinObjs.removeAll()
+        
+        if (add) {
+            let yn = [ true, false ]
+            (0..<2).forEach { join in
+                yn.forEach { perf in
+                    yn.forEach { close in
+                        yn.forEach { subdiv in
+                            joinObjs.append(contentsOf: joins(vc, join: join, perf: perf, close: close, subdiv: subdiv))
+                        }
+                    }
+                }
+            }
+            vc.enable(joinObjs, mode: .current)
+        }
+        vc.remove(oldObjs, mode: .current)
+
+        joinN += joinD
+        if (joinN > 100 || joinN < -100) {
+            joinD = -joinD
+            joinN += joinD
+        }
+    }
+
+    private func texs(_ vc: MaplyBaseViewController, slot: Int32, perf: Bool) -> [MaplyComponentObject] {
         if dashTex == nil {
             let b = MaplyLinearTextureBuilder()
             b.setPattern([1, 1])
@@ -99,46 +125,33 @@ class WideVectorsTestCase : WideVectorsTestCaseBase
             vecObj.subdivide(toFlatGreatCircle: 0.0001)
         }
 
-        let desc = [
-            kMaplyVecWidth: 40.0,
-            kMaplyColor: UIColor.red.withAlphaComponent(0.5),
+        let wideDesc = [
+            kMaplyZoomSlot: slot,
+            kMaplyVecWidth: perf ? ["stops":[[1,3],[12,50]]] : 40,
+            kMaplyColor: ["stops":[[0,UIColor.blue.withAlphaComponent(0.75)],[6,UIColor.red.withAlphaComponent(0.75)]]],
             kMaplyEnable: true,
             kMaplyDrawPriority: kMaplyVectorDrawPriorityDefault + 1,
             kMaplyWideVecImpl: perf ? kMaplyWideVecImplPerf : kMaplyWideVecImplDefault,
             kMaplyWideVecJoinType: kMaplyWideVecBevelJoin,
             kMaplyVecTexture: dashTex ?? NSNull(),
-            kMaplyWideVecTexRepeatLen: 50,
+            kMaplyWideVecTexRepeatLen: 64,
+            kMaplyWideVecOffset: perf ? ["stops":[[8,0],[10,-40],[12,40]]] : 5,
+            kMaplyWideVecTexOffsetX: 0.0,
+            kMaplyWideVecTexOffsetY: 0.5,
+            kMaplyTexWrapX: true,
+            kMaplyTexWrapY: true,
         ] as [AnyHashable: Any]
+        let wco = vc.addWideVectors([vecObj], desc: wideDesc, mode: .current)
 
+        let desc = [
+            kMaplyColor: UIColor.green.withAlphaComponent(0.5),
+            kMaplyEnable: true,
+            kMaplyDrawPriority: kMaplyVectorDrawPriorityDefault + 2,
+            kMaplyWideVecImpl: perf ? kMaplyWideVecImplPerf : kMaplyWideVecImplDefault,
+        ] as [AnyHashable: Any]
         let co = vc.addWideVectors([vecObj], desc: desc, mode: .current)
 
-        return [co].compactMap { $0 }
-    }
-
-    private func joins(_ vc: MaplyBaseViewController, add: Bool = true) {
-        let oldObjs = joinObjs
-        joinObjs.removeAll()
-        
-        if (add) {
-            let yn = [ true, false ]
-            (0..<2).forEach { join in
-                yn.forEach { perf in
-                    yn.forEach { close in
-                        yn.forEach { subdiv in
-                            joinObjs.append(contentsOf: joins(vc, join: join, perf: perf, close: close, subdiv: subdiv))
-                        }
-                    }
-                }
-            }
-            vc.enable(joinObjs, mode: .current)
-        }
-        vc.remove(oldObjs, mode: .current)
-
-        joinN += joinD
-        if (joinN > 100 || joinN < -100) {
-            joinD = -joinD
-            joinN += joinD
-        }
+        return [co,wco].compactMap { $0 }
     }
 
     private func wideLineTest(_ vc: MaplyBaseViewController) {
@@ -148,23 +161,21 @@ class WideVectorsTestCase : WideVectorsTestCaseBase
         addGeoJson("square.geojson", dashPattern: [2, 2], width: 10.0, viewC: vc);
         addGeoJson("track.geojson", viewC: vc);
         //addGeoJson("uturn2.geojson", dashPattern:[16, 16], width:40, viewC:vc);
-
         addGeoJson("USA.geojson", viewC:vc);
-
         //addGeoJson("testJson.json", viewC:vc);
         //addGeoJson("straight.geojson", viewC:vc);
         //addGeoJson("uturn.geojson", viewC:vc);
 
         overlap(vc);
         vecColors(vc);
-        objs.append(contentsOf: texs(vc, perf: false))
-        objs.append(contentsOf: texs(vc, perf: true))
-//
-//        // Dynamic properties require a zoom slot, which may not be set up yet
-        baseCase.getLoader()?.addPostInitBlock { [weak self] in
-            guard let self = self, let loader = self.baseCase.getLoader() else { return }
-            self.exprs(vc, withLoader: loader, perf: false)
-            self.exprs(vc, withLoader: loader, perf: true)
+
+        if zoomSlot < 0 {
+            zoomSlot = baseViewController?.retainZoomSlotMinZoom(0, maxHeight: 2, maxZoom: 20, minHeight: 0.001) ?? -1;
+        }
+
+        [true, false].forEach {
+            self.objs.append(contentsOf: self.texs(vc, slot: self.zoomSlot, perf: $0))
+            self.exprs(vc, slot: self.zoomSlot, perf: $0)
         }
 
         joinTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
@@ -204,10 +215,15 @@ class WideVectorsTestCase : WideVectorsTestCaseBase
                 vc.remove(tex, mode: .current)
                 dashTex = nil
             }
+            
+            if zoomSlot >= 0 {
+                vc.releaseZoomSlotIndex(zoomSlot)
+            }
         }
         baseCase.stop()
     }
 
+    private var zoomSlot: Int32 = -1
     private var dashTex: MaplyTexture?
     private var objs = [MaplyComponentObject]()
     private var joinTimer: Timer?

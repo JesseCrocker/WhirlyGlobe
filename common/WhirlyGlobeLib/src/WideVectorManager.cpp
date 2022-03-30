@@ -41,6 +41,10 @@ WideVectorInfo::WideVectorInfo(const Dictionary &dict)
     subdivEps = (float)dict.getDouble(MaplySubdivEpsilon,subdivEps);
     texID = dict.getInt(MaplyVecTexture,EmptyIdentity);
     repeatSize = (float)dict.getDouble(MaplyWideVecTexRepeatLen,repeatSize);
+    texOffset = {
+        (float)dict.getDouble(MaplyWideVecTexOffsetX,0.0),
+        (float)dict.getDouble(MaplyWideVecTexOffsetY,0.0),
+    };
     edgeSize = (float)dict.getDouble(MaplyWideVecEdgeFalloff,edgeSize);
     miterLimit = (float)dict.getDouble(MaplyWideVecMiterLimit,miterLimit);
 
@@ -55,11 +59,22 @@ WideVectorInfo::WideVectorInfo(const Dictionary &dict)
     else if (!coordTypeStr.compare(MaplyWideVecCoordTypeScreen))
         coordType = WideVecCoordScreen;
 
-    // Note: Not supporting this right now
-    //const std::string jointTypeStr = dict.getString(MaplyWideVecJoinType);
-    //_joinType = (WhirlyKit::WideVectorLineJoinType)[desc enumForKey:@"wideveclinejointype" values:@[@"miter",@"round",@"bevel"] default:WideVecMiterJoin];
-    //const std::string capTypeStr = dict.getString(MaplyWideVecCapType);
-    //_capType = (WhirlyKit::WideVectorLineCapType)[desc enumForKey:@"wideveclinecaptype" values:@[@"butt",@"round",@"square"] default:WideVecButtCap];
+    if (const auto entry = dict.getEntry(MaplyWideVecJoinType))
+    {
+        const auto s = entry->getString();
+        if      (s == MaplyWideVecMiterJoin) joinType = WideVecMiterJoin;
+        else if (s == MaplyWideVecBevelJoin) joinType = WideVecBevelJoin;
+        else if (s == MaplyWideVecRoundJoin) joinType = WideVecRoundJoin;
+        else                                 joinType = WideVecNoneJoin;
+    }
+
+    if (const auto entry = dict.getEntry(MaplyWideVecLineCapType))
+    {
+        const auto s = entry->getString();
+        if      (s == MaplyWideVecButtCap)   capType = WideVecButtCap;
+        else if (s == MaplyWideVecSquareCap) capType = WideVecSquareCap;
+        else if (s == MaplyWideVecRoundCap)  capType = WideVecRoundCap;
+    }
 
     if (const auto entry = dict.getEntry(MaplyVecWidth))
     {
@@ -718,6 +733,7 @@ struct WideVectorDrawableConstructor
                                    vecInfo);
                 drawable = wideDrawable;
                 wideDrawable->setTexRepeat(vecInfo->repeatSize);
+                wideDrawable->setTexOffset(vecInfo->texOffset);
                 wideDrawable->setEdgeSize(vecInfo->edgeSize);
                 wideDrawable->setLineWidth(vecInfo->width);
                 wideDrawable->setLineOffset(vecInfo->offset);
