@@ -737,17 +737,19 @@ struct WideVectorDrawableConstructor
                 wideDrawable->setEdgeSize(vecInfo->edgeSize);
                 wideDrawable->setLineWidth(vecInfo->width);
                 wideDrawable->setLineOffset(vecInfo->offset);
-                if (vecInfo->widthExp)
-                    wideDrawable->setWidthExpression(vecInfo->widthExp);
-                if (vecInfo->opacityExp)
-                    wideDrawable->setOpacityExpression(vecInfo->opacityExp);
-                if (vecInfo->colorExp)
-                    wideDrawable->setColorExpression(vecInfo->colorExp);
-                if (vecInfo->offsetExp)
-                    wideDrawable->setOffsetExpression(vecInfo->offsetExp);
+                wideDrawable->setLineJoin(vecInfo->joinType);
+                wideDrawable->setLineCap(vecInfo->capType);
+                wideDrawable->setMiterLimit(vecInfo->miterLimit);
+                wideDrawable->setWidthExpression(vecInfo->widthExp);
+                wideDrawable->setOpacityExpression(vecInfo->opacityExp);
+                wideDrawable->setColorExpression(vecInfo->colorExp);
+                wideDrawable->setOffsetExpression(vecInfo->offsetExp);
+
                 maskEntries.resize(numMaskIDs);
                 for (unsigned int ii=0;ii<maskEntries.size();ii++)
+                {
                     maskEntries[ii] = wideDrawable->addAttribute(BDIntType, a_maskNameIDs[ii], sceneRender->getSlotForNameID(a_maskNameIDs[ii]), ptCount);
+                }
 
                 drawable->setColor(vecInfo->color);
                 if (doColors)
@@ -757,7 +759,10 @@ struct WideVectorDrawableConstructor
 
                 int baseTexId = 0;
                 if (vecInfo->texID != EmptyIdentity)
+                {
                     drawable->setTexId(baseTexId++, vecInfo->texID);
+                }
+
                 if (centerValid)
                 {
                     Eigen::Affine3d trans(Eigen::Translation3d(dispCenter.x(),dispCenter.y(),dispCenter.z()));
@@ -857,30 +862,38 @@ struct WideVectorDrawableConstructor
                 // 8 points and 6 triangles.
                 // Many of the points can't be shared because the end caps
                 //  will be handled differently by the fragment shader
-                
-                // End cap: vertices [0,3], polygon 0
-                drawable->addInstancePoint(Point3f(0,0,0),0,0);
-                drawable->addInstancePoint(Point3f(0,0,0),1,0);
-                drawable->addInstancePoint(Point3f(0,0,0),2,0);
-                drawable->addInstancePoint(Point3f(0,0,0),3,0);
-                drawable->addTriangle(BasicDrawable::Triangle(0,3,1));
-                drawable->addTriangle(BasicDrawable::Triangle(0,2,3));
+
+                int base = 0;
+                if (drawable->getLineJoin() != WideVectorLineJoinType::WideVecNoneJoin)
+                {
+                    base = 4;
+                    // End cap: vertices [0,3], polygon 0
+                    drawable->addInstancePoint(Point3f(0,0,0),0,0);
+                    drawable->addInstancePoint(Point3f(0,0,0),1,0);
+                    drawable->addInstancePoint(Point3f(0,0,0),2,0);
+                    drawable->addInstancePoint(Point3f(0,0,0),3,0);
+                    drawable->addTriangle(BasicDrawable::Triangle(0,3,1));
+                    drawable->addTriangle(BasicDrawable::Triangle(0,2,3));
+                }
 
                 // Middle segment: vertices [4,7], polygon 1
                 drawable->addInstancePoint(Point3f(0,0,0),4,1);
                 drawable->addInstancePoint(Point3f(0,0,0),5,1);
                 drawable->addInstancePoint(Point3f(0,0,0),6,1);
                 drawable->addInstancePoint(Point3f(0,0,0),7,1);
-                drawable->addTriangle(BasicDrawable::Triangle(4,7,5));
-                drawable->addTriangle(BasicDrawable::Triangle(4,6,7));
+                drawable->addTriangle(BasicDrawable::Triangle(base+0,base+3,base+1));
+                drawable->addTriangle(BasicDrawable::Triangle(base+0,base+2,base+3));
 
-                // End cap: vertices [8,11], polygon 2
-                drawable->addInstancePoint(Point3f(0,0,0),8,2);
-                drawable->addInstancePoint(Point3f(0,0,0),9,2);
-                drawable->addInstancePoint(Point3f(0,0,0),10,2);
-                drawable->addInstancePoint(Point3f(0,0,0),11,2);
-                drawable->addTriangle(BasicDrawable::Triangle(8,11,9));
-                drawable->addTriangle(BasicDrawable::Triangle(8,10,11));
+                if (drawable->getLineJoin() != WideVectorLineJoinType::WideVecNoneJoin)
+                {
+                    // End cap: vertices [8,11], polygon 2
+                    drawable->addInstancePoint(Point3f(0,0,0),8,2);
+                    drawable->addInstancePoint(Point3f(0,0,0),9,2);
+                    drawable->addInstancePoint(Point3f(0,0,0),10,2);
+                    drawable->addInstancePoint(Point3f(0,0,0),11,2);
+                    drawable->addTriangle(BasicDrawable::Triangle(base+4,base+7,base+5));
+                    drawable->addTriangle(BasicDrawable::Triangle(base+4,base+6,base+7));
+                }
             }
             
             // Run through the points, adding centerline instances

@@ -93,6 +93,23 @@ typedef enum {
     WKSVertexBillboardOffsetAttribute = 8
 } WKSVertexBillboardAttributes;
 
+// Line Joins
+// These are assumed to match WideVectorLineJoinType
+typedef enum {
+    WKSVertexLineJoinMiter = 0,
+    WKSVertexLineJoinRound = 1,
+    WKSVertexLineJoinBevel = 2,
+    WKSVertexLineJoinNone = 3,
+} WKSVertexLineJoinType;
+
+// Line Caps
+// These are assumed to match WideVectorLineCapType
+typedef enum {
+    WKSVertexLineCapButt = 0,
+    WKSVertexLineCapRound = 1,
+    WKSVertexLineCapSquare = 2,
+} WKSVertexLineCapType;
+
 // Maximum number of textures we currently support
 #define WKSTextureMax 8
 // Textures passed into the shader start here
@@ -228,12 +245,15 @@ struct Lighting {
 
 // Instructions to the wide vector shaders, usually per-drawable
 struct UniformWideVec {
-    float w2;       // Width / 2.0 in screen space
-    float offset;   // Offset from center in screen space
-    float edge;     // Edge falloff control
-    float texRepeat;  // Texture scaling specific to wide vectors
-    simd::float2 texOffset;
-    bool hasExp;      // Look for a UniformWideVecExp structure for color, opacity, and width
+    float w2;                    // Width / 2.0 in screen space
+    float offset;                // Offset from center in screen space
+    float edge;                  // Edge falloff control
+    float texRepeat;             // Texture scaling specific to wide vectors
+    simd::float2 texOffset;      // Texture offset
+    simd::float2 miterLimit;     // Miter join limit, multiples of width
+    WKSVertexLineJoinType join;  // Line joins
+    WKSVertexLineCapType cap;    // Line endcaps
+    bool hasExp;                 // Look for a UniformWideVecExp structure for color, opacity, and width
 };
 
 // For variable width (and color, etc) lines we'll
@@ -419,6 +439,10 @@ struct ProjVertexTriWideVecPerf {
     float w2;
     float edge;
     uint2 maskIDs;
+    float v1,v2,v3,d;
+    float w;
+    float2 screenScale;
+    float c;
 };
 
 // Input vertex data for Screen Space shaders

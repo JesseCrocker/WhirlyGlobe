@@ -249,6 +249,8 @@ extern NSString * const _Nonnull kMaplyWideVecMiterJoin;
 extern NSString * const _Nonnull kMaplyWideVecRoundJoin;
 /// Widened vectors are joined with a bevel
 extern NSString * const _Nonnull kMaplyWideVecBevelJoin;
+/// None
+extern NSString * const _Nonnull kMaplyWideVecNoneJoin;
 
 /// Number of pixels to use in blending the edges of the wide vectors
 extern NSString * const _Nonnull kMaplyWideVecEdgeFalloff;

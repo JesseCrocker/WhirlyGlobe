@@ -799,7 +799,7 @@ fragment float4 fragmentTri_wideVec(
             constant TriWideArgBufferFrag & fragArgs [[buffer(WKSFragmentArgBuffer)]],
             constant WideVecTextures & texArgs [[buffer(WKSFragTextureArgBuffer)]])
 {
-    int numTextures = TexturesBase(texArgs.texPresent);
+    const int numTextures = TexturesBase(texArgs.texPresent);
 
     // Dot/dash pattern
     float4 patternColor(1.0,1.0,1.0,1.0);
@@ -836,6 +836,7 @@ struct IntersectInfo {
     float2 interPt;
     float c, d2;
     float ta,tb;
+    float denom;
 };
 
 // wedge product (2D cross product)
@@ -867,8 +868,9 @@ IntersectInfo intersectWideLines(float2 p0,float2 p1,float2 p2,
     return {
         .valid = true,
         .interPt = inter,
+        .denom = denom,
         .d2 = distance_squared(p1, inter),
-        .c = wedge(p2 - p1, n0 - n1) / denom,
+        //.c = wedge(p2 - p1, n0 - n1) / denom,
         .ta = 0.0,
         .tb = 0.0,
     };
@@ -900,6 +902,9 @@ float2 screenPos(constant Uniforms &u, float3 viewPos) {
     return s.xy / s.w;
 }
 
+constant constexpr float wideVecMinTurnThreshold = 1e-5;
+constant constexpr float wideVecMaxTurnThreshold = 0.99999998476;  // sin(89.99 deg)
+
 // Performance version of wide vector shader
 vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
           VertexTriWideVecB vert [[stage_in]],
@@ -918,6 +923,17 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
     // Polygon index within the segment.  0=Start cap, 1=body, 2=end cap
     const int whichPoly = vert.index & 0xffff;
 
+    const bool isLeft = (whichVert & 1);
+    const bool isEnd = (whichVert == 6 || whichVert == 7);
+
+    const int numTextures = TexturesBase(texArgs.texPresent);
+    const bool hasTex = (numTextures > 0);
+
+    const bool bevelJoin = (vertArgs.wideVec.join == WKSVertexLineJoinBevel);
+    const bool miterJoin = (vertArgs.wideVec.join == WKSVertexLineJoinMiter);
+    const bool roundJoin = (vertArgs.wideVec.join == WKSVertexLineJoinRound);
+    const bool noJoin    = (vertArgs.wideVec.join == WKSVertexLineJoinNone);
+
     // Find the various instances representing center points.
     // We need one behind and one ahead of us.
     //                     previous segment
@@ -927,7 +943,7 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
     bool instValid[4] = { false, true, false, false };
     VertexTriWideVecInstance inst[4] = { {}, wideVecInsts[instanceID], {}, {} };
 
-    if (inst[1].prev != -1) {
+    if (inst[1].prev != -1 && !noJoin) {
         inst[0] = wideVecInsts[inst[1].prev];
         instValid[0] = true;
     }
@@ -935,11 +951,12 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
         inst[2] = wideVecInsts[inst[1].next];
         instValid[2] = true;
 
-        if (inst[2].next != -1) {
+        if (inst[2].next != -1 && noJoin) {
             inst[3] = wideVecInsts[inst[2].next];
             instValid[3] = true;
         }
     } else {
+        // We need at least this and next
         return outVert;
     }
 
@@ -951,22 +968,23 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
     // Figure out position on the screen for every center point
     CenterInfo centers[4];
     for (unsigned int ii=0;ii<4;ii++) {
-        if (instValid[ii]) {
-            const float3 centerPos = viewPos(vertArgs.uniDrawState.singleMat, inst[ii].center);
-            centers[ii].screenPos = screenPos(uniforms, centerPos);
-            
-            // Make sure the object is facing the user (only for the globe)
-            if (uniforms.globeMode && ii == 1) {
-                float4 pt = uniforms.mvMatrix * float4(centerPos,1.0);
-                pt /= pt.w;
+        if (!instValid[ii]) {
+            continue;
+        }
+        const float3 centerPos = viewPos(vertArgs.uniDrawState.singleMat, inst[ii].center);
+        centers[ii].screenPos = screenPos(uniforms, centerPos);
+        
+        // Make sure the object is facing the user (only for the globe)
+        if (uniforms.globeMode && ii == 1) {
+            float4 pt = uniforms.mvMatrix * float4(centerPos,1.0);
+            pt /= pt.w;
 
-                if (pt.z > 0.0) {
+            if (pt.z > 0.0) {
+                isValid = false;
+            } else {
+                const float4 testNorm = uniforms.mvNormalMatrix * float4(centerPos,0.0);
+                if (dot(-pt.xyz, testNorm.xyz) <= 0.0) {
                     isValid = false;
-                } else {
-                    const float4 testNorm = uniforms.mvNormalMatrix * float4(centerPos,0.0);
-                    if (dot(-pt.xyz, testNorm.xyz) <= 0.0) {
-                        isValid = false;
-                    }
                 }
             }
         }
@@ -982,7 +1000,9 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
     
     const float pixScale = min(uniforms.screenSizeInDisplayCoords.x,uniforms.screenSizeInDisplayCoords.y) /
                            min(uniforms.frameSize.x,uniforms.frameSize.y);
-    const float texScale = 1 / pixScale / vertArgs.wideVec.texRepeat;   // texture coords / display coords = ~1000
+    const float texRepeatX = 1.0;   // ?
+    const float texRepeatY = vertArgs.wideVec.texRepeat;
+    const float texScale = 1 / pixScale / texRepeatY;   // texture coords / display coords = ~1000
 
     // (1.0/2 (uniforms.frameSize.x + uniforms.frameSize.y)
     const float zoom = ZoomFromSlot(uniforms, vertArgs.uniDrawState.zoomSlot);
@@ -1022,39 +1042,37 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
     switch (whichPoly) {
         case 0:
         case 2:
-            isValid = false;
+            return outVert;
     }
 
     // Do the offset intersection
     bool iPtsValid = false;
-    const int interPt = (whichVert == 6 || whichVert == 7) ? 1 : 0;
-    float2 iPts;
-    IntersectInfo interInfo;
+    const int interIdx = isEnd ? 1 : 0;
+    float2 interPt;
     // If we're on the far end of the body segment, we need this and the next two segments.
     // Otherwise we need the previous, this, and the next segment.
-    if (instValid[interPt] && instValid[interPt+1] && instValid[interPt+2]) {
-        const float dotProd = dot(centers[interPt+1].nDir, centers[interPt+2].nDir);
-        const float limit = 0.99999998476;  // cos(0.01 deg)
-        if (dotProd > -limit && dotProd < limit) {
-            // Acute angles tend to break things
-//                angleBetween = acos(dotProd);
-//                if (angleBetween < 4.0 / 180.0 * M_PI_F) {
-//                    iPtsValid = false;
-//                }
+    if (instValid[interIdx] && instValid[interIdx+1] && instValid[interIdx+2]) {
+        
+        // Don't even bother computing intersections for very acute angles or very small turns
+        const float dotProd = dot(centers[interIdx+1].nDir, centers[interIdx+2].nDir);
+        if (-wideVecMaxTurnThreshold < dotProd &&
+            dotProd < wideVecMaxTurnThreshold &&
+            abs(dotProd - 1.0) >= wideVecMinTurnThreshold) {
 
-            // Intersect the left or right normals
-            const float2 nudge = interDir * screenScale * (w2 /*+ centerLine*/);
-            interInfo = intersectWideLines(centers[interPt].screenPos,
-                                           centers[interPt+1].screenPos,
-                                           centers[interPt+2].screenPos,
-                                           nudge * centers[interPt+1].norm,
-                                           nudge * centers[interPt+2].norm);
+            // Intersect the left or right sides of prev-this and this-next, plus offset
+            const float2 nudge = screenScale * (interDir * w2 + centerLine);
+            const IntersectInfo interInfo = intersectWideLines(
+                centers[interIdx].screenPos,
+                centers[interIdx+1].screenPos,
+                centers[interIdx+2].screenPos,
+                nudge * centers[interIdx+1].norm,
+                nudge * centers[interIdx+2].norm);
 
             // If the intersection is too far away, we'll drop it
-            const float nearDist = 2 * 1.42 * w2 * max(screenScale.x,screenScale.y);
-            if (interInfo.valid && interInfo.d2 <= nearDist*nearDist) {
+            //const float nearDist = 2 * 1.42 * w2 * max(screenScale.x,screenScale.y);
+            if (interInfo.valid /*&& interInfo.d2 <= nearDist*nearDist*/) {
                 iPtsValid = true;
-                iPts = interInfo.interPt;
+                interPt = interInfo.interPt;
             }
         }
     }
@@ -1073,27 +1091,27 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
 
     if (isValid) {
         // Select the correct endpoint from which to start.
-        const bool isLeft = (whichVert & 1);
-        const bool isEnd = (whichVert == 6 || whichVert == 7);
         const int centerIdx = isEnd ? 2 : 1;
 
         // Work out the corner position by extending the normal
-        const float2 offset = centers[2].norm * interDir * screenScale * (w2 + centerLine + vertArgs.wideVec.edge);
+        const float2 offset = centers[2].norm * screenScale * (interDir * (w2 + vertArgs.wideVec.edge) + centerLine);
         const float2 corner = centers[centerIdx].screenPos + offset;
 
         // Use the intersect point, if there is one, or the corner otherwise.
-        outVert.position = float4(iPtsValid ? iPts : corner, 0, 1);
+        outVert.position = float4(iPtsValid ? interPt : corner, 0, 1);
 
-        // Texture position is based on cumulative distance along the line. Note that
-        // `inst[2].totalLen` wraps to zero at the end, and we don't want that.
-        // Then add the difference betweent the intersection point and the original corner,
-        // accounting for the textures being based on un-projected coordinates.
-        const float texY = inst[1].totalLen + (isEnd ? inst[1].segLen : 0) +
-                           (iPtsValid ? dot(iPts - corner, centers[2].nDir) / projScale : 0);
+        if (hasTex)
+        {
+            // Texture position is based on cumulative distance along the line. Note that
+            // `inst[2].totalLen` wraps to zero at the end, and we don't want that.
+            // Then add the difference betweent the intersection point and the original corner,
+            // accounting for the textures being based on un-projected coordinates.
+            const float texY = inst[1].totalLen + (isEnd ? inst[1].segLen : 0) +
+                               (iPtsValid ? dot(interPt - corner, centers[2].nDir) / projScale : 0);
 
-        const float repeatX = 1.0;  // vertArgs.wideVec.texRepeatX?
-        outVert.texCoord.x = vertArgs.wideVec.texOffset.x + (isLeft ? 0 : repeatX);
-        outVert.texCoord.y = vertArgs.wideVec.texOffset.y + texY * texScale;
+            outVert.texCoord.x = vertArgs.wideVec.texOffset.x + (isLeft ? 0 : texRepeatX);
+            outVert.texCoord.y = -vertArgs.wideVec.texOffset.y + texY * texScale;
+        }
     }
     return outVert;
 }
