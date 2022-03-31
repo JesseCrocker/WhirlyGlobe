@@ -62,10 +62,11 @@ WideVectorInfo::WideVectorInfo(const Dictionary &dict)
     if (const auto entry = dict.getEntry(MaplyWideVecJoinType))
     {
         const auto s = entry->getString();
-        if      (s == MaplyWideVecMiterJoin) joinType = WideVecMiterJoin;
-        else if (s == MaplyWideVecBevelJoin) joinType = WideVecBevelJoin;
-        else if (s == MaplyWideVecRoundJoin) joinType = WideVecRoundJoin;
-        else                                 joinType = WideVecNoneJoin;
+        if      (s == MaplyWideVecMiterJoin)     joinType = WideVecMiterJoin;
+        else if (s == MaplyWideVecMiterClipJoin) joinType = WideVecMiterClipJoin;
+        else if (s == MaplyWideVecBevelJoin)     joinType = WideVecBevelJoin;
+        else if (s == MaplyWideVecRoundJoin)     joinType = WideVecRoundJoin;
+        else                                     joinType = WideVecNoneJoin;
     }
 
     if (const auto entry = dict.getEntry(MaplyWideVecLineCapType))
@@ -679,6 +680,9 @@ public:
     //,centerAdj;
 };
 
+static const std::string defDrawableName = "Wide Vector";
+static const std::string defDrawableNamePerf = "Performance Wide Vector";
+
 // Used to build up drawables
 struct WideVectorDrawableConstructor
 {
@@ -714,6 +718,13 @@ struct WideVectorDrawableConstructor
         }
     }
 
+    void setDrawableName(const char *name) {
+        setDrawableName(name ? std::string(name) : std::string());
+    }
+    void setDrawableName(std::string n) {
+        drawableName = std::move(n);
+    }
+
     // Build or return a suitable drawable (depending on the mode)
     WideVectorDrawableBuilderRef getDrawable(int ptCount,int triCount,
                                              int ptCountAllocate,int triCountAllocate,
@@ -726,7 +737,8 @@ struct WideVectorDrawableConstructor
             {
                 flush();
 
-                auto wideDrawable = sceneRender->makeWideVectorDrawableBuilder("Wide Vector");
+                const auto &name = drawableName.empty() ? defDrawableNamePerf : drawableName;
+                auto wideDrawable = sceneRender->makeWideVectorDrawableBuilder(name);
                 wideDrawable->Init(ptCountAllocate,triCountAllocate,clineCount,
                                    vecInfo->implType,
                                    !scene->getCoordAdapter()->isFlat(),
@@ -772,8 +784,8 @@ struct WideVectorDrawableConstructor
             }
         } else {
             // Basic mode builds up a lot more geometry
-            int ptGuess = std::min(std::max(ptCount,0),(int)MaxDrawablePoints);
-            int triGuess = std::min(std::max(triCount,0),(int)MaxDrawableTriangles);
+            const int ptGuess = std::min(std::max(ptCount,0),(int)MaxDrawablePoints);
+            const int triGuess = std::min(std::max(triCount,0),(int)MaxDrawableTriangles);
 
             if (!drawable ||
                 (drawable->getNumPoints()+ptGuess > MaxDrawablePoints) ||
@@ -782,9 +794,10 @@ struct WideVectorDrawableConstructor
                 flush();
                 
     //            NSLog(@"Pts = %d, tris = %d",ptGuess,triGuess);
-                int ptAlloc = std::min(std::max(ptCountAllocate,0),(int)MaxDrawablePoints);
-                int triAlloc = std::min(std::max(triCountAllocate,0),(int)MaxDrawableTriangles);
-                WideVectorDrawableBuilderRef wideDrawable = sceneRender->makeWideVectorDrawableBuilder("Wide Vector");
+                const int ptAlloc = std::min(std::max(ptCountAllocate,0),(int)MaxDrawablePoints);
+                const int triAlloc = std::min(std::max(triCountAllocate,0),(int)MaxDrawableTriangles);
+                const auto &name = drawableName.empty() ? defDrawableName : drawableName;
+                WideVectorDrawableBuilderRef wideDrawable = sceneRender->makeWideVectorDrawableBuilder(name);
                 wideDrawable->Init(ptAlloc,triAlloc,0,
                                    vecInfo->implType,
                                    !scene->getCoordAdapter()->isFlat(),
@@ -1083,6 +1096,7 @@ protected:
     const WideVectorInfo *vecInfo;
     WideVectorDrawableBuilderRef drawable = nullptr;
     std::vector<WideVectorDrawableBuilderRef> drawables;
+    std::string drawableName;
 };
     
 void WideVectorSceneRep::enableContents(bool enable,ChangeSet &changes)
@@ -1154,6 +1168,7 @@ SimpleIdentity WideVectorManager::addVectors(const std::vector<VectorShapeRef> &
     
     builder.setCenter(localCenter,centerDisp);
     builder.setColor(vecInfo.color);
+    builder.setDrawableName(vecInfo.drawableName);
 
     VectorRing tempLoop;
     for (const auto &shape : shapes)

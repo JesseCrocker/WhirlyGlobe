@@ -40,6 +40,7 @@ typedef enum {WideVecCoordReal,WideVecCoordScreen} WideVectorCoordsType;
 /// How the lines are joined.  See: http://www.w3.org/TR/SVG/painting.html#StrokeLinejoinProperty
 typedef enum {
     WideVecMiterJoin,
+    WideVecMiterClipJoin,
     WideVecRoundJoin,
     WideVecBevelJoin,
     WideVecNoneJoin,

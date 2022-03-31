@@ -96,10 +96,11 @@ typedef enum {
 // Line Joins
 // These are assumed to match WideVectorLineJoinType
 typedef enum {
-    WKSVertexLineJoinMiter = 0,
-    WKSVertexLineJoinRound = 1,
-    WKSVertexLineJoinBevel = 2,
-    WKSVertexLineJoinNone = 3,
+    WKSVertexLineJoinMiter     = 0,
+    WKSVertexLineJoinMiterClip = 1,
+    WKSVertexLineJoinRound     = 2,
+    WKSVertexLineJoinBevel     = 3,
+    WKSVertexLineJoinNone      = 4,
 } WKSVertexLineJoinType;
 
 // Line Caps
@@ -250,7 +251,7 @@ struct UniformWideVec {
     float edge;                  // Edge falloff control
     float texRepeat;             // Texture scaling specific to wide vectors
     simd::float2 texOffset;      // Texture offset
-    simd::float2 miterLimit;     // Miter join limit, multiples of width
+    float miterLimit;            // Miter join limit, multiples of width
     WKSVertexLineJoinType join;  // Line joins
     WKSVertexLineCapType cap;    // Line endcaps
     bool hasExp;                 // Look for a UniformWideVecExp structure for color, opacity, and width
@@ -433,16 +434,20 @@ struct VertexTriWideVecB
 
 // Wide vector vertex passed to fragment shader (new version)
 struct ProjVertexTriWideVecPerf {
-    float4 position [[invariant]] [[position]];
+    float4 position [[invariant]] [[position]];     // transformed to NDC
+    float2 screenPos;                               // un-transformed vertex position
+    float2 centerPos;                               // un-transformed circle center
     float4 color;
     float2 texCoord;
     float w2;
     float edge;
     uint2 maskIDs;
-    float v1,v2,v3,d;
-    float w;
-    float2 screenScale;
-    float c;
+
+    float c,c2,d, denom;
+    uint whichVert, whichPoly;
+    
+    bool roundJoin;
+    bool roundCap;
 };
 
 // Input vertex data for Screen Space shaders

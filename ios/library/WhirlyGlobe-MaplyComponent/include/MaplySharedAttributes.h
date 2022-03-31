@@ -243,8 +243,10 @@ extern NSString * const _Nonnull kMaplyWideVecImplPerf;
 /// See: http://www.w3.org/TR/SVG/painting.html#StrokeLinejoinProperty
 extern NSString * const _Nonnull kMaplyWideVecJoinType;
 
-/// Widened vectors are joined with miters
+/// Widened vectors are joined with miters (fall back on bevel)
 extern NSString * const _Nonnull kMaplyWideVecMiterJoin;
+/// Widened vectors are joined with miters (clip on exceeding miter-limit)
+extern NSString * const _Nonnull kMaplyWideVecMiterClipJoin;
 /// Widened vectors are joined with a curve
 extern NSString * const _Nonnull kMaplyWideVecRoundJoin;
 /// Widened vectors are joined with a bevel
@@ -299,6 +301,9 @@ extern NSString * const _Nonnull kMaplySubdivSimple;
 extern NSString * const _Nonnull kMaplySubdivGrid;
 /// Used to turn off selection in vectors
 extern NSString * const _Nonnull kMaplySelectable;
+
+/// Attach a name to the generated drawable(s) for debugging purposes
+extern NSString * const _Nonnull kMaplyDrawableName;
 
 /// These are used for stickers
 

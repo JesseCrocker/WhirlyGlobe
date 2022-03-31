@@ -38,12 +38,15 @@ class WideVectorsTestCase : WideVectorsTestCaseBase
         }
 
         let desc = [
-            kMaplyVecWidth: 20.0,
+            kMaplyVecWidth: 50.0,
             kMaplyColor: UIColor.red.withAlphaComponent(0.5),
             kMaplyEnable: false,
             kMaplyDrawPriority: kMaplyVectorDrawPriorityDefault + 1,
             kMaplyWideVecImpl: perf ? kMaplyWideVecImplPerf : kMaplyWideVecImplDefault,
-            kMaplyWideVecJoinType: joinAttr(join) ?? NSNull()
+            kMaplyWideVecJoinType: joinAttr(join) ?? NSNull(),
+            kMaplyDrawableName: String(format: "WideVec-%@%@%@%@",
+                                       joinAttr(join) ?? "", perf ? "-perf" : "",
+                                       subdiv ? "-subdiv" : "", close ? "-closed" : "")
         ] as [AnyHashable: Any]
 
         let lblDesc = [
@@ -372,6 +375,7 @@ class WideVectorsTestCase : WideVectorsTestCaseBase
         //loadShapeFile(vc)
         vc.animate(toPosition: MaplyCoordinateMakeWithDegrees(-100.0, 40.0), height: 1.0, heading: 0.0, time: 0.1)
         vc.animate(toPosition: MaplyCoordinateMakeWithDegrees(-148.0, 32.0), height: 0.03, heading: 0.0, time: 0.1)
+        vc.animate(toPosition: MaplyCoordinateMakeWithDegrees(-133.0, 39.0), height: 0.15, heading: 0.0, time: 0.1)
         //vc.animate(toPosition: MaplyCoordinateMakeWithDegrees(-122.4192, 37.7793), height: 0.01, heading: 0.0, time: 0.1)
     }
     
@@ -410,8 +414,8 @@ class WideVectorsTestCase : WideVectorsTestCaseBase
     private var joinTimer: Timer?
     private var timerObjs = [MaplyComponentObject]()
     private var texY = 0
-    private var joinN = 0
+    private var joinN = 15
     private var joinD = 1
-    private let joinSteps = 50
+    private let joinSteps = 30
     private let baseCase = GeographyClassTestCase()
 }

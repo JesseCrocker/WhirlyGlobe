@@ -137,8 +137,8 @@ NSString* const kMaplyTextOutlineSize = MaplyTextOutlineSize;
 NSString* const kMaplyTextLineSpacing = MaplyTextLineHeight;
 /// If outline is being used, we can control the stroke size
 NSString* const kMaplyTextOutlineColor = MaplyTextOutlineColor;
-NSString* const kMaplyTexSizeX = @"texsizex";
-NSString* const kMaplyTexSizeY = @"texsizey";
+WKDefineConst(TexSizeX)
+WKDefineConst(TexSizeY)
 NSString* const kMaplyTextJustify = MaplyTextJustify;
 NSString* const kMaplyTextJustifyRight = MaplyTextJustifyRight;
 NSString* const kMaplyTextJustifyLeft = MaplyTextJustifyLeft;
@@ -208,6 +208,7 @@ WKDefineConst(WideVecJoinType)
 
 /// Widened vectors are joined with miters
 WKDefineConst(WideVecMiterJoin)
+WKDefineConst(WideVecMiterClipJoin)
 // Note: Not yet implemented
 /// Widened vectors are joined with a curve
 WKDefineConst(WideVecRoundJoin)
@@ -261,13 +262,16 @@ NSString* const kMaplySubdivGreatCircle = MaplySubdivGreatCircle;
 /// Subdivide the vector edges along a great circle with ellipsoidal math
 NSString* const kMaplySubdivGreatCirclePrecise = MaplySubdivGreatCirclePrecise;
 /// Subdivide into a fixed number of segmenets
-NSString* const kMaplySubdivStatic = @"static";
+WKDefineConst(SubdivStatic)
 /// Subdivide the vectors edges along lat/lon
 NSString* const kMaplySubdivSimple = MaplySubdivSimple;
 /// Clip features along a grid of the given size
 NSString* const kMaplySubdivGrid = MaplySubdivGrid;
 /// Used to turn off selection in vectors
-NSString* const kMaplySelectable = @"selectable";
+WKDefineConst(Selectable)
+
+/// Attach a name to the generated drawable(s) for debugging purposes
+WKDefineConst(DrawableName);
 
 /// These are used for stickers
 
@@ -317,9 +321,9 @@ NSString* const kMaplyLoftedPolyOutlineSide = MaplyLoftedPolyOutlineSide;
 /// These are used for shapes
 
 /// Samples (x) to use when converting shape to polygons
-NSString* const kMaplyShapeSampleX = @"shapesamplex";
+WKDefineConst(ShapeSampleX)
 /// Samples (y) to use when converting shape to polygons
-NSString* const kMaplyShapeSampleY = @"shapesampley";
+WKDefineConst(ShapeSampleY)
 /// If set to true, we'll tessellate a shape using the opposite vertex ordering
 NSString* const kMaplyShapeInsideOut = MaplyShapeInsideOut;
 /// Center for the shape geometry
@@ -336,15 +340,16 @@ NSString* const kMaplyPointSize = MaplyGeomPointSize;
 const float kMaplyPointSizeDefault = 4.0;
 
 /// These are used by the texture
-NSString* const kMaplyTexFormat = @"texformat";
-NSString* const kMaplyTexMinFilter = @"texminfilter";
-NSString* const kMaplyTexMagFilter = @"texmagfilter";
-NSString* const kMaplyMinFilterNearest = @"texfilternearest";
-NSString* const kMaplyMinFilterLinear = @"texfilterlinear";
-NSString* const kMaplyTexAtlas = @"texatlas";
-NSString* const kMaplyTexWrapX = @"texwrapx";
-NSString* const kMaplyTexWrapY = @"texwrapy";
-NSString* const kMaplyTexMipmap = @"texmipmap";
+WKDefineConst(TexFormat)
+WKDefineConst(TexMinFilter)
+WKDefineConst(TexMagFilter)
+WKDefineConst(MinFilterNearest)
+WKDefineConst(MinFilterLinear)
+WKDefineConst(TexAtlas)
+WKDefineConst(TexWrapX)
+WKDefineConst(TexWrapY)
+WKDefineConst(TexMipmap)
+
 
 /// These are the various shader programs we set up by default
 NSString* const kMaplyShaderDefaultTri = @"Default Triangle;lighting=yes";

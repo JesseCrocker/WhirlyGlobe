@@ -257,6 +257,7 @@
 
 /// Widened vectors are joined with miters
 #define MaplyWideVecMiterJoin WKString("miter")
+#define MaplyWideVecMiterClipJoin WKString("miter-clip")
 /// Widened vectors are joined with a curve
 #define MaplyWideVecRoundJoin WKString("round")
 /// Widened vectors are joined with a bevel
@@ -374,3 +375,22 @@
 #define MaplyUUIDDesc WKString("uuid")
 /// Used to distinguish the particular representation of a unique ID
 #define MaplyRepresentationDesc WKString("representation")
+
+/// Attach a name to the drawable(s) generated for debugging purposes
+#define MaplyDrawableName WKString("drawablename")
+
+#define MaplyTexSizeX WKString("texsizex");
+#define MaplyTexSizeY WKString("texsizey");
+#define MaplySubdivStatic WKString("static");
+#define MaplySelectable WKString("selectable");
+#define MaplyShapeSampleX WKString("shapesamplex");
+#define MaplyShapeSampleY WKString("shapesampley");
+#define MaplyTexFormat WKString("texformat");
+#define MaplyTexMinFilter WKString("texminfilter");
+#define MaplyTexMagFilter WKString("texmagfilter");
+#define MaplyMinFilterNearest WKString("texfilternearest");
+#define MaplyMinFilterLinear WKString("texfilterlinear");
+#define MaplyTexAtlas WKString("texatlas");
+#define MaplyTexWrapX WKString("texwrapx");
+#define MaplyTexWrapY WKString("texwrapy");
+#define MaplyTexMipmap WKString("texmipmap");
