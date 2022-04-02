@@ -884,10 +884,15 @@ struct TriWideArgBufferC {
 
 // Used to track what info we have about a center point
 struct CenterInfo {
+    /// Screen coordinates of the line segment endpoint
     float2 screenPos;
+    /// Vector of the line segment (un-normalized)
     float2 dir;
-    float len, len2;
+    /// Length of the segment squared
+    float len2;
+    /// Normalized direction of the segment
     float2 nDir;
+    /// Normalized plane normal, perpendicular to the segment
     float2 norm;
 };
 
@@ -907,6 +912,7 @@ constant constexpr float wideVecMaxTurnThreshold = 0.99999998476;  // sin(89.99 
 constant constexpr int polyStartCap = 0;
 constant constexpr int polyBody = 1;
 constant constexpr int polyEndCap = 2;
+constant constexpr float4 discardPt(0,0,-1e6,NAN);
 
 // Performance version of wide vector shader
 vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
@@ -918,7 +924,10 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
           constant VertexTriWideVecInstance *wideVecInsts   [[ buffer(WKSVertModelInstanceArgBuffer) ]],
           constant RegularTextures & texArgs [[buffer(WKSVertTextureArgBuffer)]])
 {
-    ProjVertexTriWideVecPerf outVert = { .position = float4(0.0,0.0,-1000.0,1.0) };
+    ProjVertexTriWideVecPerf outVert = {
+        .position = discardPt,
+        .roundJoin = false,
+    };
 
     // Vertex index within the instance, 0-11
     // Odd indexes are on the left, evens are on the right.
@@ -931,10 +940,6 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
 
     const bool isLeft = (whichVert & 1);
     const bool isEnd = (whichVert > 5);
-    const bool isStart = (whichVert < 6);
-
-    const int numTextures = TexturesBase(texArgs.texPresent);
-    const bool hasTex = (numTextures > 0);
 
     const float zoom = ZoomFromSlot(uniforms, vertArgs.uniDrawState.zoomSlot);
 
@@ -943,11 +948,14 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
     if (vertArgs.wideVec.hasExp) {
         w2 = ExpCalculateFloat(vertArgs.wideVecExp.widthExp, zoom, 2.0*w2)/2.0;
     }
+
+    // w2 includes edge-blend, strokeWidth does not
     const float strokeWidth = 2 * w2;
     if (w2 > 0.0) {
         w2 = w2 + vertArgs.wideVec.edge;
     }
 
+    // Disable joins for narrow lines
     auto joinType = (w2 >= 1) ? vertArgs.wideVec.join : WKSVertexLineJoinNone;
 
     // Find the various instances representing center points.
@@ -976,12 +984,7 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
         return outVert;
     }
 
-    outVert.maskIDs[0] = inst[1].mask0;
-    outVert.maskIDs[1] = inst[1].mask1;
-
-    bool isValid = true;
-
-    // Figure out position on the screen for every center point
+    // Figure out position on the screen for each center point
     CenterInfo centers[4];
     for (unsigned int ii=0;ii<4;ii++) {
         if (!instValid[ii]) {
@@ -996,37 +999,29 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
             pt /= pt.w;
 
             if (pt.z > 0.0) {
-                isValid = false;
+                return outVert;
             } else {
                 const float4 testNorm = uniforms.mvNormalMatrix * float4(centerPos,0.0);
                 if (dot(-pt.xyz, testNorm.xyz) <= 0.0) {
-                    isValid = false;
+                    return outVert;
                 }
             }
         }
     }
 
-    if (!isValid) {
-        return outVert;
-    }
-
-    // Size of pixels
     const float2 screenScale(2.0/uniforms.frameSize.x,2.0/uniforms.frameSize.y);    // ~(0.001,0.001)
-    //const float avgScreenScale = 0.5/(uniforms.frameSize.x + uniforms.frameSize.y);
-    
     const float pixScale = min(uniforms.screenSizeInDisplayCoords.x,uniforms.screenSizeInDisplayCoords.y) /
                            min(uniforms.frameSize.x,uniforms.frameSize.y);
-    const float texRepeatX = 1.0;   // ?
     const float texRepeatY = vertArgs.wideVec.texRepeat;
     const float texScale = 1 / pixScale / texRepeatY;   // texture coords / display coords = ~1000
 
+    // Calculate directions and normals
     for (unsigned int ii=1;ii<4;ii++) {
         if (instValid[ii-1]) {
             centers[ii].dir = centers[ii].screenPos - centers[ii-1].screenPos;
             centers[ii].len2 = length_squared(centers[ii].dir);
-            centers[ii].len = sqrt(centers[ii].len2);
             centers[ii].nDir = normalize(centers[ii].dir);
-            centers[ii].norm = normalize(float2(-centers[ii].dir.y,centers[ii].dir.x));
+            centers[ii].norm = float2(-centers[ii].nDir.y,centers[ii].nDir.x);
         }
     }
 
@@ -1036,19 +1031,12 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
 
     // Pull out the center line offset, or calculate one
     float centerLine = vertArgs.wideVec.offset;
-    if (vertArgs.wideVec.hasExp)
+    if (vertArgs.wideVec.hasExp) {
         centerLine = ExpCalculateFloat(vertArgs.wideVecExp.offsetExp, zoom, centerLine);
+    }
 
     // Intersect on the left or right depending
     const float interDir = (whichVert & 1) ? 1 : -1;
-
-//    // Turn off the end caps for the moment
-//    switch (whichPoly) {
-//        case polyStartCap:
-//        case polyEndCap:
-//        case polyBody:
-//            return outVert;
-//    }
 
     // Do the offset intersection
     bool intersectValid = false;
@@ -1066,41 +1054,54 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
             dotProd < wideVecMaxTurnThreshold &&
             abs(dotProd - 1.0) >= wideVecMinTurnThreshold) {
 
+            theta = acos(dotProd);
+
             // "If the miter length divided by the stroke width exceeds the miterlimit then:
             //   miter: the join is converted to a bevel
             //   miter-clip: the miter is clipped at half the miter length from the intersection"
             if (joinType == WKSVertexLineJoinMiter || joinType == WKSVertexLineJoinMiterClip) {
-                theta = acos(dotProd);
                 const float miterFrac = 1 / sin(theta / 2);
                 miterLength = strokeWidth * miterFrac;
-                if (joinType == WKSVertexLineJoinMiter && miterFrac > vertArgs.wideVec.miterLimit) {
+                if (joinType != WKSVertexLineJoinMiterClip && miterFrac > vertArgs.wideVec.miterLimit) {
                     joinType = WKSVertexLineJoinBevel;
                 }
             }
             
             // Intersect the left or right sides of prev-this and this-next, plus offset
-            const float2 nudge = screenScale * (interDir * w2 + centerLine);
-            const IntersectInfo interInfo = intersectWideLines(
-                centers[interIdx].screenPos,
-                centers[interIdx+1].screenPos,
-                centers[interIdx+2].screenPos,
-                nudge * centers[interIdx+1].norm,
-                nudge * centers[interIdx+2].norm);
+            thread const CenterInfo &prev = centers[interIdx+0];
+            thread const CenterInfo &cur  = centers[interIdx+1];
+            thread const CenterInfo &next = centers[interIdx+2];
+            const float2 edgeDist = screenScale * (interDir * w2 + centerLine);
+            const IntersectInfo interInfo = intersectWideLines(prev.screenPos, cur.screenPos, next.screenPos,
+                                                               edgeDist * cur.norm, edgeDist * next.norm);
 
             if (interInfo.valid) {
-                turningLeft = (interInfo.c < 0);    // interInfo.c doesn't seem to work?
+                turningLeft = (interInfo.c < 0);
                 interPt = interInfo.interPt;
 
-                // If the intersection is too far away, we'll drop it
-                //const float nearDist = 2 * 1.42 * w2 * max(screenScale.x,screenScale.y);
-                const float maxDist2 = centers[interIdx+2].len2;//nearDist*nearDist;
-                intersectValid = (interInfo.dist2 <= maxDist2);
+                // Limit the distance to the smaller of half way back along the previous segment
+                // or half way forward along the next one to keep consecutive segments from colliding.
+                //
+                // For up to four times that distance, adjust the intersection point back along its
+                // length to that limit, effectively narrowing the line instead of just breaking down.
+                // todo: too clever by half... maybe make this opt-in?
+                const float maxDist2 = min(cur.len2, next.len2);
+                if (interInfo.dist2 <= maxDist2 / 4) {
+                    intersectValid = true;
+                } else if (interInfo.dist2 <= maxDist2 * 4) {
+                    interPt = cur.screenPos + normalize(interPt - cur.screenPos) * sqrt(maxDist2) / 2;
+                    intersectValid = true;
+                }
             }
         }
     }
 
-    const bool insideEdge = (isLeft == turningLeft);
-    
+    // Endcaps not used for miter case, discard them.
+    if (joinType == WKSVertexLineJoinMiter &&
+        (whichPoly == polyStartCap || whichPoly == polyEndCap)) {
+        return outVert;
+    }
+
     // Note: We're putting a color in the instance, but then it's hard to change
     //  So we'll pull the color out of the basic drawable
     float4 color = vert.color;
@@ -1112,146 +1113,125 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
     outVert.color = color * calculateFade(uniforms,vertArgs.uniDrawState);
     outVert.w2 = w2;
     outVert.edge = vertArgs.wideVec.edge;
+    outVert.maskIDs[0] = inst[1].mask0;
+    outVert.maskIDs[1] = inst[1].mask1;
 
-    if (isValid) {
-        // Select the correct endpoint from which to start.
-        const int centerIdx = isEnd ? 2 : 1;
+    // Work out the corner positions by extending the normals
+    const int centerIdx = isEnd ? 2 : 1;
+    const float2 center = centers[centerIdx].screenPos;
+    const float2 offsetPt = center + centerLine * screenScale;
+    const float2 realEdge = (interDir * w2 + centerLine) * screenScale;
+    const float2 corner = center + centers[2].norm * realEdge;
+    const bool insideEdge = (isLeft == turningLeft);
 
-        // Work out the corner position by extending the normal.
-        // This is the default result for all points.
-        const float2 offset = centers[2].norm * screenScale * (interDir * (w2 + vertArgs.wideVec.edge) + centerLine);
-        const float2 corner = centers[centerIdx].screenPos + offset;
-        const float2 otherOffset = centers[2].norm * screenScale * (-interDir * (w2 + vertArgs.wideVec.edge) + centerLine);
-        const float2 otherCorner = centers[centerIdx].screenPos + otherOffset;
-        float2 pos = corner;
+    // Current corner is the default result for all points.
+    float2 pos = corner;
+    
+    // Texture position is based on cumulative distance along the line.
+    // Note that `inst[2].totalLen` wraps to zero at the end, and we don't want that.
+    // Texture coords are used for edge blending, so we need to set them up even if there are no textures.
+    float texY = inst[1].totalLen + (isEnd ? inst[1].segLen : 0);
+    float texX = isLeft ? -1 : 1;
 
-        const float2 realHalfStrokeWidth = strokeWidth/2 * screenScale;
-
-        // Texture position is based on cumulative distance along the line. Note that
-        // `inst[2].totalLen` wraps to zero at the end, and we don't want that.
-        float texY = inst[1].totalLen + (isEnd ? inst[1].segLen : 0);
-        float texX = isLeft ? 0 : 1;
-
-        if (joinType != WKSVertexLineJoinNone && intersectValid) {
-            // Use the intersect point, if there is one, or the corner otherwise.
-            pos = interPt;
-
-            // For a bevel, use the intersect point for the inside of the turn, but not the outside.
-            if ((joinType == WKSVertexLineJoinBevel || joinType == WKSVertexLineJoinRound)) {
-                
-                outVert.d = theta*180/3.14159;
-                outVert.c = sin(theta/2);
-
-                //float2 outInter = insideEdge ? centers[2].screenPos + (centers[2].screenPos - interPt) : interPt;
-                // Bevel endcap shares two points with the end of the body segment,
-                // third point is half way along the bevel to meet the other side's startcap.
-                switch (whichVert) {
-                    // Start cap
-                    case 0:
-                        if (turningLeft) {
-                            pos = corner + -centers[2].nDir * realHalfStrokeWidth * outVert.c;
-                        } else {
-                            pos = interPt;
-                        }
-                        break;
-                    case 1:
-                        if (turningLeft) {
-                            pos = centers[1].screenPos + normalize(centers[1].nDir - centers[2].nDir) * w2 * screenScale;
-                            texX = 1 - texX;
-                        } else {
-                            pos = centers[1].screenPos + normalize(centers[1].nDir - centers[2].nDir) * w2 * screenScale;
-                        }
-                        break;
-                    case 2:
-                        if (turningLeft) {
-                            pos = corner;
-                        } else {
-                            pos = otherCorner;
-                            texX = 1 - texX;
-                        }
-                        break;
-                    case 3:
-                        if (turningLeft) {
-                            pos = interPt;
-                        } else {
-                            pos = corner + -centers[2].nDir * realHalfStrokeWidth * outVert.c;
-                        }
-                        break;
-                    // body segment
-                    case 4:
-                    case 5:
-                    case 6:
-                    case 7:
-                        if (insideEdge) {
-                            // Merge inside corners to avoid overlap
-                            pos = interPt;
-                        } else {
-                            // Use standard outside corner
-                            pos = corner;
-                        }
-                        break;
-                    // End cap
-                    case 8:       // Right side, corner shared with body segment
-                        if (turningLeft) {
-                            pos = corner + centers[2].nDir * realHalfStrokeWidth * outVert.c;
-                        } else {
-                            pos = interPt;   // Match body segment right corner
-                        }
-                        break;
-                    case 9:
-                        if (turningLeft) {
-                            pos = otherCorner;  // match body segment right corner
-                            texX = 1 - texX;
-                        } else {
-                            pos = corner;   // match body segment left corner
-                        }
-                        break;
-                    case 10:
-                        if (turningLeft) {
-                            pos = centers[2].screenPos + normalize(centers[2].nDir - centers[3].nDir) * w2 * screenScale;
-                        } else {
-                            pos = centers[2].screenPos + normalize(centers[2].nDir - centers[3].nDir) * w2 * screenScale;
-                            texX = 1 - texX;
-                        }
-                        break;
-                    case 11:
-                        if (turningLeft) {
-                            pos = interPt;  // match body segment left corner
-                        } else {
-                            pos = corner + centers[2].nDir * realHalfStrokeWidth * outVert.c;
-                        }
-                        break;
-                }
-            }
-
-            if (hasTex)
-            {
-                // Add the difference betweent the intersection point and the original corner,
-                // accounting for the textures being based on un-projected coordinates.
-                texY += dot(interPt - corner, centers[2].nDir) / projScale;
-            }
-//            case WKSVertexLineJoinRound:
-//                switch (whichPoly)
-//                {
-//                    case polyBody:
-//                        outVert.position = float4(intersectValid ? interPt : corner, 0, 1);
-//                        break;
-//                    case polyStartCap:
-//                    case polyEndCap:
-//                        outVert.screenPos = intersectValid ? interPt : corner;
-//                        outVert.roundJoin = intersectValid;
-//                        outVert.roundCap = (whichPoly == 0 && !instValid[interIdx]) ||
-//                                            (whichPoly == 2 && !instValid[interIdx+2]);
-//                        break;
-//                }
-        }
-        
+    if (joinType == WKSVertexLineJoinNone || !intersectValid) {
+        // Trivial case, just use the corner
         outVert.position = float4(pos, 0, 1);
-        outVert.texCoord.x = vertArgs.wideVec.texOffset.x + (texX * texRepeatX);
-        outVert.texCoord.y = -vertArgs.wideVec.texOffset.y + texY * texScale;
+        outVert.texCoord = -vertArgs.wideVec.texOffset + float2(texX, texY * texScale);
+        return outVert;
     }
+
+    // Since there is one, use the intersect point by default
+    pos = interPt;
+
+    bool discardTri = false;
+
+    // For a bevel, use the intersect point for the inside of the turn, but not the outside.
+    // Round piggypacks on bevel.
+    if (joinType == WKSVertexLineJoinBevel || joinType == WKSVertexLineJoinRound) {
+        const float2 realOtherEdge = (-interDir * w2 + centerLine) * screenScale;
+        const float2 otherCorner = center + centers[2].norm * realOtherEdge;
+        switch (whichVert) {
+            // Start cap, 0-3-1, 0-2-3
+            case 2: discardTri = true; // not using triangle #2, fall through
+            case 0: pos = turningLeft ? corner : interPt; break;
+            case 1:
+                if (turningLeft) {
+                    // Opposite corner on the previous segment
+                    const float2 prevOtherCorner = center + centers[1].norm * realOtherEdge;
+                    // Use the point halfway between the outside corner and the one on the opposite side.
+                    pos = otherCorner + (prevOtherCorner - otherCorner) / 2;
+                    // We're placing the vertex on the "wrong" side, so fix the texture X.
+                    texX = -texX;
+                } else {
+                    // Same corner on the previous segment
+                    const float2 prevCorner = center + centers[1].norm * realEdge;
+                    pos = corner + (prevCorner - corner) / 2;
+                }
+                break;
+            case 3: pos = turningLeft ? interPt : corner; break;
+            // Body segment, 4-7-5, 4-6-7
+            // Merge inside corners to avoid overlap, use default outside corner.
+            case 4: case 5: case 6: case 7: pos = insideEdge ? interPt : corner; break;
+            // End cap, 8-11-9, 8-10-11
+            case 10: discardTri = true; // Not using triangle #2, fall through
+            case 8: pos = turningLeft ? corner : interPt; break;
+            case 9: pos = turningLeft ? interPt : corner; break;
+            case 11:
+                if (turningLeft) {
+                    // Opposite corner on the next segment
+                    const float2 nextOtherCorner = center + centers[3].norm * realOtherEdge;
+                    // Use the point halfway between the outside corner and the one on the opposite side.
+                    pos = otherCorner + (nextOtherCorner - otherCorner) / 2;
+                    // We're placing the vertex on the "wrong" side, so fix the texture X.
+                    texX = -texX;
+                } else {
+                    // Same corner on the next segment
+                    const float2 nextCorner = center + centers[3].norm * realEdge;
+                    pos = corner + (nextCorner - corner) / 2;
+                }
+                break;
+        }
+
+        // For the round case, extend the center of the bevel out into a "tip," which will be
+        // turned into a round extension by the fragment shader.  This isn't exactly right, but
+        // I think we'd need more geometry to do better.
+        if (joinType == WKSVertexLineJoinRound &&
+            (whichPoly == polyStartCap || whichPoly == polyEndCap)) {
+            outVert.roundJoin = true;
+            outVert.centerPos = offsetPt / screenScale;
+            outVert.screenPos = pos / screenScale;
+            
+            // Direction bisecting the turn toward the outside (right for a left turn)
+            outVert.midDir = normalize(isEnd ? (centers[2].nDir - centers[3].nDir) :
+                                               (centers[1].nDir - centers[2].nDir));
+
+            if (whichVert == 1 || whichVert == 11) {
+                // Extend the corner far enough to cover the necessary round-ness.
+                // This should probably be related to the turn angle, we're just fudging it.
+                const float extend = 2 * w2;
+                pos += outVert.midDir * extend * screenScale;
+                outVert.screenPos = pos / screenScale;
+            }
+        }
+    }
+
+    // Add the difference betweent the intersection point and the original corner,
+    // accounting for the textures being based on un-projected coordinates.
+    texY += dot(interPt - corner, centers[2].nDir) / projScale;
+
+    outVert.position = float4(pos, discardTri ? -1e6 : 0, discardTri ? NAN : 1);
+    // Opposite values because we're showing back faces.
+    outVert.texCoord = -vertArgs.wideVec.texOffset + float2(texX, texY * texScale);
+
     return outVert;
 }
+
+constant constexpr auto defaultWideTexFiltering =
+#if defined(__HAVE_BICUBIC_FILTERING__)
+    filter::bicubic;
+#else
+    filter::linear;
+#endif
 
 // Fragment shader that takes the back of the globe into account
 fragment float4 fragmentTri_wideVecPerf(
@@ -1260,34 +1240,38 @@ fragment float4 fragmentTri_wideVecPerf(
             constant TriWideArgBufferFrag & fragArgs [[buffer(WKSFragmentArgBuffer)]],
             constant WideVecTextures & texArgs [[buffer(WKSFragTextureArgBuffer)]])
 {
-    if (texArgs.texPresent & (1<<WKSTextureEntryLookup)) {
-        if (vert.maskIDs[0] > 0 || vert.maskIDs[1] > 0) {
-            // Pull the maskID from the input texture
-            constexpr sampler sampler2d(coord::normalized, filter::linear);
-            const float2 loc(vert.position.x/uniforms.frameSize.x,vert.position.y/uniforms.frameSize.y);
-            unsigned int maskID = texArgs.maskTex.sample(sampler2d, loc).r;
-            if (vert.maskIDs[0] == maskID || vert.maskIDs[1] == maskID)
-                discard_fragment();
+    if (texArgs.texPresent & (1<<WKSTextureEntryLookup) && (vert.maskIDs[0] > 0 || vert.maskIDs[1] > 0)) {
+        // Pull the maskID from the input texture
+        constexpr sampler sampler2d(coord::normalized, filter::nearest);
+        const float2 loc = vert.position.xy / uniforms.frameSize;
+        unsigned int maskID = texArgs.maskTex.sample(sampler2d, loc).r;
+        if (vert.maskIDs[0] == maskID || vert.maskIDs[1] == maskID) {
+            discard_fragment();
         }
     }
-    
+
+    // If there's a texture, apply its alpha channel to get dash patterns, or whatever.
     const int numTextures = TexturesBase(texArgs.texPresent);
     float patternAlpha = 1.0;
     if (numTextures > 0) {
-        constexpr sampler sampler2d(coord::normalized, address::repeat, filter::bicubic);
+        const auto filt = defaultWideTexFiltering;  // todo: pull this from the args
+        constexpr sampler sampler2d(coord::normalized, address::repeat, filt);
         // Just pulling the alpha at the moment
         // If we use the rest, we get interpolation down to zero, which isn't quite what we want here
         patternAlpha = texArgs.tex[0].sample(sampler2d, vert.texCoord).a;
     }
 
-    if (vert.roundJoin || vert.roundCap) {
-        const float r = distance(vert.centerPos, vert.screenPos);
-        const float roundAlpha = 1 - min(r / vert.w2, 1.0);
-        return vert.color * float4(1,1,1,roundAlpha * patternAlpha);
+    // Reduce alpha of the "tip" for round joins to get a round look.
+    float roundAlpha = 1.0;
+    if (vert.roundJoin && dot(vert.screenPos - vert.centerPos, vert.midDir) > 0) {
+        const float r = length_squared(vert.screenPos - vert.centerPos) / vert.w2 / vert.w2;
+        roundAlpha = clamp((r > 0.95) ? (1 - r) * 20 : 1.0, 0.0, 1.0);
     }
 
+    // Reduce alpha along the edges to get smooth blending.
     const float edgeAlpha = (vert.edge > 0) ? clamp((1 - abs(vert.texCoord.x)) * vert.w2 / vert.edge, 0.0, 1.0) : 1.0;
-    return vert.color * float4(1,1,1,edgeAlpha * patternAlpha);
+
+    return vert.color * float4(1,1,1,edgeAlpha * patternAlpha * roundAlpha);
 }
 
 

@@ -609,7 +609,7 @@ public:
                     }
                 }
                     break;
-                case WideVecRoundJoin:
+                default:
                     break;
             }
         }
@@ -876,36 +876,41 @@ struct WideVectorDrawableConstructor
                 // Many of the points can't be shared because the end caps
                 //  will be handled differently by the fragment shader
 
+                // Caps are needed for miter becasue it can turn into a bevel.
+                const bool emitCaps = (drawable->getLineJoin() != WideVectorLineJoinType::WideVecNoneJoin);
+
                 int base = 0;
-                if (drawable->getLineJoin() != WideVectorLineJoinType::WideVecNoneJoin)
+                int pt = 0;
+                if (emitCaps)
                 {
                     base = 4;
                     // End cap: vertices [0,3], polygon 0
-                    drawable->addInstancePoint(Point3f(0,0,0),0,0);
-                    drawable->addInstancePoint(Point3f(0,0,0),1,0);
-                    drawable->addInstancePoint(Point3f(0,0,0),2,0);
-                    drawable->addInstancePoint(Point3f(0,0,0),3,0);
+                    drawable->addInstancePoint({0,0,0},0,0);
+                    drawable->addInstancePoint({0,0,0},1,0);
+                    drawable->addInstancePoint({0,0,0},2,0);
+                    drawable->addInstancePoint({0,0,0},3,0);
                     drawable->addTriangle(BasicDrawable::Triangle(0,3,1));
                     drawable->addTriangle(BasicDrawable::Triangle(0,2,3));
                 }
 
                 // Middle segment: vertices [4,7], polygon 1
-                drawable->addInstancePoint(Point3f(0,0,0),4,1);
-                drawable->addInstancePoint(Point3f(0,0,0),5,1);
-                drawable->addInstancePoint(Point3f(0,0,0),6,1);
-                drawable->addInstancePoint(Point3f(0,0,0),7,1);
+                drawable->addInstancePoint({0,0,0},4,1);
+                drawable->addInstancePoint({0,0,0},5,1);
+                drawable->addInstancePoint({0,0,0},6,1);
+                drawable->addInstancePoint({0,0,0},7,1);
                 drawable->addTriangle(BasicDrawable::Triangle(base+0,base+3,base+1));
                 drawable->addTriangle(BasicDrawable::Triangle(base+0,base+2,base+3));
 
-                if (drawable->getLineJoin() != WideVectorLineJoinType::WideVecNoneJoin)
+                if (emitCaps)
                 {
+                    base += 4;
                     // End cap: vertices [8,11], polygon 2
-                    drawable->addInstancePoint(Point3f(0,0,0),8,2);
-                    drawable->addInstancePoint(Point3f(0,0,0),9,2);
-                    drawable->addInstancePoint(Point3f(0,0,0),10,2);
-                    drawable->addInstancePoint(Point3f(0,0,0),11,2);
-                    drawable->addTriangle(BasicDrawable::Triangle(base+4,base+7,base+5));
-                    drawable->addTriangle(BasicDrawable::Triangle(base+4,base+6,base+7));
+                    drawable->addInstancePoint({0,0,0},8,2);
+                    drawable->addInstancePoint({0,0,0},9,2);
+                    drawable->addInstancePoint({0,0,0},10,2);
+                    drawable->addInstancePoint({0,0,0},11,2);
+                    drawable->addTriangle(BasicDrawable::Triangle(base+0,base+3,base+1));
+                    drawable->addTriangle(BasicDrawable::Triangle(base+0,base+2,base+3));
                 }
             }
             

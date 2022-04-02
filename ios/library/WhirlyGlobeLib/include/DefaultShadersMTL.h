@@ -250,7 +250,7 @@ struct UniformWideVec {
     float offset;                // Offset from center in screen space
     float edge;                  // Edge falloff control
     float texRepeat;             // Texture scaling specific to wide vectors
-    simd::float2 texOffset;      // Texture offset
+    simd::float2 texOffset;      // Texture offset.
     float miterLimit;            // Miter join limit, multiples of width
     WKSVertexLineJoinType join;  // Line joins
     WKSVertexLineCapType cap;    // Line endcaps
@@ -437,17 +437,17 @@ struct ProjVertexTriWideVecPerf {
     float4 position [[invariant]] [[position]];     // transformed to NDC
     float2 screenPos;                               // un-transformed vertex position
     float2 centerPos;                               // un-transformed circle center
+    float2 midDir;                                  // Turn direction
     float4 color;
     float2 texCoord;
     float w2;
     float edge;
     uint2 maskIDs;
-
-    float c,c2,d, denom;
     uint whichVert, whichPoly;
-    
     bool roundJoin;
-    bool roundCap;
+    
+    float dp;
+    float a,b,c,d;
 };
 
 // Input vertex data for Screen Space shaders
