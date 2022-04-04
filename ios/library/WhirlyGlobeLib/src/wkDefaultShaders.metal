@@ -984,7 +984,10 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
         return outVert;
     }
 
-    // Figure out position on the screen for each center point
+    // Figure out position on the screen for each center point.
+    // centers[1] represents the segment leading to the current point.
+    // centers[2] represents the segment leading from the current point.
+    // centers[X] = vector from centers[X-1] to centers[X]
     CenterInfo centers[4];
     for (unsigned int ii=0;ii<4;ii++) {
         if (!instValid[ii]) {
@@ -1036,13 +1039,13 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
     }
 
     // Intersect on the left or right depending
-    const float interDir = (whichVert & 1) ? 1 : -1;
+    const float interSgn = (whichVert & 1) ? 1 : -1;
 
     // Do the offset intersection
     bool intersectValid = false;
     bool turningLeft = false;
     const int interIdx = isEnd ? 1 : 0;
-    float2 interPt;
+    float2 interPt, realInterPt;
     float dotProd, theta, miterLength;
     // If we're on the far end of the body segment, we need this and the next two segments.
     // Otherwise we need the previous, this, and the next segment.
@@ -1060,10 +1063,13 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
             //   miter: the join is converted to a bevel
             //   miter-clip: the miter is clipped at half the miter length from the intersection"
             if (joinType == WKSVertexLineJoinMiter || joinType == WKSVertexLineJoinMiterClip) {
-                const float miterFrac = 1 / sin(theta / 2);
-                miterLength = strokeWidth * miterFrac;
-                if (joinType != WKSVertexLineJoinMiterClip && miterFrac > vertArgs.wideVec.miterLimit) {
-                    joinType = WKSVertexLineJoinBevel;
+                miterLength = abs(1 / sin(theta / 2));
+                if (miterLength > vertArgs.wideVec.miterLimit) {
+                    if (joinType == WKSVertexLineJoinMiter) {
+                        joinType = WKSVertexLineJoinBevel;
+                    } else if (joinType == WKSVertexLineJoinMiterClip) {
+                        miterLength = vertArgs.wideVec.miterLimit;
+                    }
                 }
             }
             
@@ -1071,13 +1077,13 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
             thread const CenterInfo &prev = centers[interIdx+0];
             thread const CenterInfo &cur  = centers[interIdx+1];
             thread const CenterInfo &next = centers[interIdx+2];
-            const float2 edgeDist = screenScale * (interDir * w2 + centerLine);
+            const float2 edgeDist = screenScale * (interSgn * w2 + centerLine);
             const IntersectInfo interInfo = intersectWideLines(prev.screenPos, cur.screenPos, next.screenPos,
                                                                edgeDist * cur.norm, edgeDist * next.norm);
 
             if (interInfo.valid) {
                 turningLeft = (interInfo.c < 0);
-                interPt = interInfo.interPt;
+                realInterPt = interPt = interInfo.interPt;
 
                 // Limit the distance to the smaller of half way back along the previous segment
                 // or half way forward along the next one to keep consecutive segments from colliding.
@@ -1120,7 +1126,7 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
     const int centerIdx = isEnd ? 2 : 1;
     const float2 center = centers[centerIdx].screenPos;
     const float2 offsetPt = center + centerLine * screenScale;
-    const float2 realEdge = (interDir * w2 + centerLine) * screenScale;
+    const float2 realEdge = (interSgn * w2 + centerLine) * screenScale;
     const float2 corner = center + centers[2].norm * realEdge;
     const bool insideEdge = (isLeft == turningLeft);
 
@@ -1145,11 +1151,13 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
 
     bool discardTri = false;
 
+    // We'll need the corner on the opposite side for several things.
+    const float2 realOtherEdge = (-interSgn * w2 + centerLine) * screenScale;
+    const float2 otherCorner = center + centers[2].norm * realOtherEdge;
+
     // For a bevel, use the intersect point for the inside of the turn, but not the outside.
     // Round piggypacks on bevel.
     if (joinType == WKSVertexLineJoinBevel || joinType == WKSVertexLineJoinRound) {
-        const float2 realOtherEdge = (-interDir * w2 + centerLine) * screenScale;
-        const float2 otherCorner = center + centers[2].norm * realOtherEdge;
         switch (whichVert) {
             // Start cap, 0-3-1, 0-2-3
             case 2: discardTri = true; // not using triangle #2, fall through
@@ -1212,6 +1220,101 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
                 pos += outVert.midDir * extend * screenScale;
                 outVert.screenPos = pos / screenScale;
             }
+        }
+    } else if (joinType == WKSVertexLineJoinMiterClip) {
+        // Direction of intersect point (bisecting the segment directions)
+        const float2 interDir = normalize(realInterPt / screenScale - center / screenScale) * (turningLeft ? -1 : 1) * interSgn;
+
+        // Length of center extenstion from segment endpoint to miter cap.
+        const float midExt = miterLength / 2 * strokeWidth + vertArgs.wideVec.edge;
+        // Distance from segment endpoint to intersect point (what would be the miter extension)
+        const float interDist = length(realInterPt / screenScale - center / screenScale);
+        // Distance between corners
+        const float cornerDist = length(corner / screenScale - otherCorner / screenScale);
+        // Scale the miter edge from the corner distance down to zero at the intersect point
+        // todo: This isn't right, the edges should stay parallel up to the clip point.
+        const float miterCapExt = cornerDist / 2 * abs(cos(theta)) * clamp(midExt / interDist, 0.0, 1.0);
+
+        switch (whichVert) {
+            // Start cap, 0-3-1, 0-2-3
+            case 0:
+                if (turningLeft) {
+                    // Extend segment endpoint outward along the intersection angle by the miter length
+                    pos = center + interDir * midExt * screenScale;
+                    texX = texX * 0.9;  // todo: how to handle tex on miter extensions?
+                } else {
+                    pos = otherCorner;
+                    texX = -texX * 0.9;  // todo: how to handle tex on miter extensions?
+                }
+                break;
+            case 1:
+                if (turningLeft) {
+                    pos = interPt;
+                } else {
+                    pos = center + (center - interPt);
+                    texX = -texX;
+                }
+                break;
+            case 2:
+                if (turningLeft) {
+                    pos = center + interDir * midExt * screenScale +
+                            float2(-interDir.y,interDir.x) * miterCapExt * screenScale;
+                } else {
+                    pos = center + interDir * midExt * screenScale +
+                            -float2(-interDir.y,interDir.x) * miterCapExt * screenScale;
+                    texX = -texX;
+                }
+                break;
+            case 3:
+                if (turningLeft) {
+                    pos = otherCorner;
+                    texX = -texX * 0.9;  // todo: how to handle tex on miter extensions?
+                } else {
+                    // Extend segment endpoint away from the intersect point by the miter length
+                    pos = center + interDir * midExt * screenScale;
+                    texX = texX * 0.9; // todo: how to handle tex on miter extensions?
+                }
+                break;
+            // Body segment, 4-7-5, 4-6-7
+            // Merge inside corners to avoid overlap, use default outside corner.
+            case 4: case 5: case 6: case 7: pos = insideEdge ? interPt : corner; break;
+            // End cap, 8-11-9, 8-10-11
+            case 8:
+                if (turningLeft) {
+                    pos = corner;
+                    texX = texX * 0.9;  // todo: how to handle tex on miter extensions?
+                } else {
+                    pos = otherCorner;
+                    texX = -texX * 0.9;  // todo: how to handle tex on miter extensions?
+                }
+                break;
+            case 9:
+                if (turningLeft) {
+                    pos = interPt;
+                } else {
+                    pos = center + interDir * midExt * screenScale +
+                        float2(-interDir.y,interDir.x) * miterCapExt * screenScale;
+                }
+                break;
+            case 10:
+                if (turningLeft) {
+                    pos = center + interDir * midExt * screenScale +
+                            -float2(-interDir.y,interDir.x) * miterCapExt * screenScale;
+                } else {
+                    pos = center + (interPt - center);
+                    //texX = -texX;
+                }
+                break;
+            case 11:
+                if (turningLeft) {
+                    pos = center + interDir * midExt * screenScale;
+                    texX = -texX * 0.9;  // todo: how to handle tex on miter extensions?
+                } else {
+                    // Extend segment endpoint away from the intersect point by the miter length
+                    pos = center + interDir * midExt * screenScale;
+                    texX = texX * 0.9;  // todo: how to handle tex on miter extensions?
+                }
+                break;
         }
     }
 
