@@ -910,7 +910,7 @@ float2 screenPos(constant Uniforms &u, float3 viewPos) {
 constant constexpr float wideVecMinTurnThreshold = 1e-5;
 constant constexpr float wideVecMaxTurnThreshold = 0.99999998476;  // sin(89.99 deg)
 constant constexpr int polyStartCap = 0;
-constant constexpr int polyBody = 1;
+//constant constexpr int polyBody = 1;
 constant constexpr int polyEndCap = 2;
 constant constexpr float4 discardPt(0,0,-1e6,NAN);
 
@@ -934,12 +934,13 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
     const int whichVert = (vert.index >> 16) & 0xffff;
     // Polygon index within the segment.  0=Start cap, 1=body, 2=end cap
     const int whichPoly = vert.index & 0xffff;
-
-    outVert.whichPoly = whichPoly;
-    outVert.whichVert = whichVert;
-
+    // Are we on the left edge, or the right?
     const bool isLeft = (whichVert & 1);
+    // Are we on the starting end of the segment or the end?
     const bool isEnd = (whichVert > 5);
+
+    // Track vertex for debugging
+    //outVert.whichVert = whichVert;
 
     const float zoom = ZoomFromSlot(uniforms, vertArgs.uniDrawState.zoomSlot);
 
@@ -1094,7 +1095,7 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
                 const float maxDist2 = min(cur.len2, next.len2);
                 if (interInfo.dist2 <= maxDist2 / 4) {
                     intersectValid = true;
-                } else if (interInfo.dist2 <= maxDist2 * 4) {
+                } else if (vertArgs.wideVec.interClipLimit > 0 && interInfo.dist2 <= maxDist2 * vertArgs.wideVec.interClipLimit) {
                     interPt = cur.screenPos + normalize(interPt - cur.screenPos) * sqrt(maxDist2) / 2;
                     intersectValid = true;
                 }
@@ -1280,16 +1281,11 @@ vertex ProjVertexTriWideVecPerf vertexTri_wideVecPerf(
                             -float2(-interDir.y,interDir.x) * miterCapExt * screenScale;
                 } else {
                     pos = center + (interPt - center);
-                    //texX = -texX;
                 }
                 break;
             case 9:
-                if (turningLeft) {
-                    pos = otherCorner;
-                    texX = -texX;
-                } else {
-                    pos = corner;
-                }
+                pos = turningLeft ? otherCorner : corner;
+                texX *= turnSgn;
                 break;
             case 10:
                 if (turningLeft) {
