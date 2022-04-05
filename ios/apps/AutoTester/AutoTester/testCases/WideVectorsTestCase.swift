@@ -40,7 +40,7 @@ class WideVectorsTestCase : WideVectorsTestCaseBase
 
         let desc = [
             kMaplyZoomSlot: slot,
-            kMaplyVecWidth: perf ? ["stops":[[5,3],[12,80]]] : 40,
+            kMaplyVecWidth: perf ? ["stops":[[2,5],[12,80]]] : 40,
             kMaplyColor: perf ? UIColor.red.withAlphaComponent(0.35) : UIColor.blue.withAlphaComponent(0.35),
             kMaplyEnable: false,
             kMaplyDrawPriority: kMaplyVectorDrawPriorityDefault + 1,
@@ -97,7 +97,7 @@ class WideVectorsTestCase : WideVectorsTestCaseBase
                        cap: Int, perf: Bool, close: Bool) -> [MaplyComponentObject?] {
 
         let vsep = 2.5;
-        let lat = Float(10.0 + (perf ? 2*vsep : 0.0) + (close ? vsep : 0.0))
+        let lat = Float(15.0 + (perf ? 2*vsep : 0.0) + (close ? vsep : 0.0))
         let lon = Float(-140.0) + Float(cap) * 3.5
         var coords = [
             MaplyCoordinateMakeWithDegrees(lon + 0.0, lat),
@@ -115,14 +115,16 @@ class WideVectorsTestCase : WideVectorsTestCaseBase
 
         let desc = [
             kMaplyZoomSlot: slot,
-            kMaplyVecWidth: perf ? ["stops":[[5,3],[12,80]]] : 40,
+            kMaplyVecWidth: perf ? ["stops":[[2,5],[12,80]]] : 40,
             kMaplyColor: perf ? UIColor.red.withAlphaComponent(0.35) : UIColor.blue.withAlphaComponent(0.35),
             kMaplyEnable: false,
             kMaplyDrawPriority: kMaplyVectorDrawPriorityDefault + 1,
             kMaplyWideVecImpl: perf ? kMaplyWideVecImplPerf : kMaplyWideVecImplDefault,
             kMaplyWideVecJoinType: kMaplyWideVecBevelJoin,
             kMaplyWideVecLineCapType: capAttr(cap) ?? NSNull(),
-            kMaplyDrawableName: String(format: "WideVec-%@%@%@%@",
+            kMaplyVecTexture: dashTex ?? NSNull(),
+            kMaplyWideVecTexRepeatLen: 64,
+            kMaplyDrawableName: String(format: "WideVec-%@%@%@",
                                        capAttr(cap) ?? "", perf ? "-perf" : "",
                                        close ? "-closed" : "")
         ] as [AnyHashable: Any]
@@ -135,7 +137,7 @@ class WideVectorsTestCase : WideVectorsTestCaseBase
         ] as [AnyHashable: Any]
         let lbl = MaplyScreenLabel()
         lbl.loc = MaplyCoordinateMakeWithDegrees(lon - 0.2, lat - 0.2)
-        lbl.text = String(format: "%@%@%@%@",
+        lbl.text = String(format: "%@%@%@",
                           capAttr(cap) ?? "", perf ? "\nperf" : "",
                           close ? "\nclosed" : "")
         
@@ -295,10 +297,11 @@ class WideVectorsTestCase : WideVectorsTestCaseBase
             kMaplyEnable: true,
             kMaplyDrawPriority: kMaplyVectorDrawPriorityDefault + 1,
             kMaplyWideVecImpl: perf ? kMaplyWideVecImplPerf : kMaplyWideVecImplDefault,
-            kMaplyWideVecJoinType: kMaplyWideVecMiterJoin,
             kMaplyVecTexture: dashTex ?? NSNull(),
             kMaplyWideVecTexRepeatLen: 64,
             kMaplyWideVecOffset: 0,
+            kMaplyWideVecJoinType: kMaplyWideVecMiterJoin,
+            kMaplyWideVecMiterLimit: 4,
             kMaplyWideVecFallbackMode: kMaplyWideVecFallbackClip,
             kMaplyDrawableName: "WideVec-Offset",
         ] as [AnyHashable: Any]
@@ -479,8 +482,8 @@ class WideVectorsTestCase : WideVectorsTestCaseBase
         baseCase.setUpWithMap(vc)
         wideLineTest(vc)
         //loadShapeFile(vc)
-        //vc.animate(toPosition: MaplyCoordinateMakeWithDegrees(-133.0, 39.0), height: 0.25, heading: 0.0, time: 0.1)
-        vc.animate(toPosition: MaplyCoordinateMakeWithDegrees(-122.4192, 37.7793), height: 0.01, heading: 0.0, time: 0.1)
+        vc.animate(toPosition: MaplyCoordinateMakeWithDegrees(-133.0, 20.0), height: 0.25, heading: 0.0, time: 0.1)
+        //vc.animate(toPosition: MaplyCoordinateMakeWithDegrees(-122.4192, 37.7793), height: 0.01, heading: 0.0, time: 0.1)
     }
 
     override func stop() {
